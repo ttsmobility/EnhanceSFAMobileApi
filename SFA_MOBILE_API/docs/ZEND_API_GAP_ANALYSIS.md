@@ -285,8 +285,8 @@ Severity: **High for CFT reporting accuracy; low for endpoint availability.**
 | Customer `customerfacetime`, `toplpo`, and auto-checkout settings | Returned by updated live customer sync procedures | Returned by Node with Zend-compatible defaults and CFT fallback | Implemented |
 | Customer non-JP flags | Returned by updated live customer sync procedures | Returned by Node with `0` defaults | Implemented |
 | Customer `channel` | Used internally to resolve cluster CFT | Used internally; not exposed as a separate response field | Implemented |
-| Route direct-collection and auto-checkout settings | Returned by updated live setting procedure | Not returned by Node | Open |
-| Route working times and non-JP visibility | Returned by updated live setting procedure | Not returned by Node | Open |
+| Route direct-collection and auto-checkout settings | Returned by updated live setting procedure | Returned by Node with Zend-compatible values and defaults | Implemented |
+| Route working times and non-JP visibility | Returned by updated live setting procedure | Returned by Node with Zend-compatible time formatting | Implemented |
 | `/api/index/getsyncdata` | Restored | Compatibility depends on registered Node aliases | Verify usage before changing |
 
 These gaps are in `SFA_MOBILE_API/src/modules/mobile/transactions/models/routeActivity.model.ts`.
@@ -296,7 +296,7 @@ These gaps are in `SFA_MOBILE_API/src/modules/mobile/transactions/models/routeAc
 1. Correct the Zend `invtxndetailAction()` variable from `$params[$i]` to `$j`.
 2. Confirm the production database uses the live 20/13/10-parameter procedure versions before deploying the updated Zend controller.
 3. Add the six new persistence fields to the Node transaction model while preserving default `0` behavior for older mobile payloads.
-4. Add the new route setting columns to Node master sync after confirming the deployed mobile SQLite schema expects them. CustomerMaster parity is complete.
+4. CustomerMaster and RouteMaster master-sync parity are complete. Validate both arrays against Zend using the deployed mobile SQLite schema.
 5. Compare Zend and Node master-sync array keys and upload acknowledgements after adding the fields; existing response keys must remain unchanged.
 6. Test customer visit, collection-only visit, auto-checkout, on-premise visit, held order, route sequence upload, and `invtxndetail` upload.
 7. Review server access logs before deciding whether the restored `getsyncdata` endpoint is required.
@@ -304,4 +304,4 @@ These gaps are in `SFA_MOBILE_API/src/modules/mobile/transactions/models/routeAc
 
 ## Overall Assessment
 
-The Zend update is small but relies on a broader live-schema feature set that is not yet fully represented in the Node API. The updated Zend is compatible with `sfa_enhance_live_struct.sql`, not with the older migration procedure definitions. CustomerMaster download parity is complete; RouteMaster download fields and transaction-upload fields remain open. One new PHP line in `invtxndetailAction()` is likely incorrect and should be fixed before relying on CFT data from that endpoint.
+The Zend update is small but relies on a broader live-schema feature set that is not yet fully represented in the Node API. The updated Zend is compatible with `sfa_enhance_live_struct.sql`, not with the older migration procedure definitions. CustomerMaster and RouteMaster download parity are complete; transaction-upload fields remain open. One new PHP line in `invtxndetailAction()` is likely incorrect and should be fixed before relying on CFT data from that endpoint.

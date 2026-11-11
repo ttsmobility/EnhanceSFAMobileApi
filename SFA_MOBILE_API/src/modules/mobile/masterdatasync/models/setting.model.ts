@@ -611,7 +611,13 @@ async function getRouteMaster(
         route.enforcegeocheckout,
         COALESCE(route.enablefss, 0) AS enablefss,
         COALESCE(route.enablegpstracking, 0) AS enablegpstracking,
-        COALESCE(route.enablearcollection, 0) AS enablearcollection
+        COALESCE(route.enablearcollection, 0) AS enablearcollection,
+        route.directcollection,
+        route.shownojpcustomer,
+        COALESCE(route.enableautocheckout, 0) AS enableautocheckout,
+        COALESCE(route.autocheckoutaccuracy, 0) AS autocheckoutaccuracy,
+        TIME_FORMAT(COALESCE(route.starttime, '08:00:00'), '%H:%i:%s') AS starttime,
+        TIME_FORMAT(COALESCE(route.endtime, '17:00:00'), '%H:%i:%s') AS endtime
       FROM routemaster AS route
       WHERE route.routecode IN (${buildInClause(routeCodes)})
     `,

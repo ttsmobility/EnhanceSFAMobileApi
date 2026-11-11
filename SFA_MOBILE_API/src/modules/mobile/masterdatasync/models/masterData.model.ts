@@ -980,7 +980,7 @@ async function getCustomerMaster(
           COALESCE(cm.nonjporder, 0) AS nonjporder,
           COALESCE(cm.nonjpreturns, 0) AS nonjpreturns,
           COALESCE(cm.nonjpcollections, 0) AS nonjpcollections,
-          COALESCE(cm.toplpo, 0) AS toplpo
+          cm.toplpo
         FROM customermaster cm
         LEFT JOIN customerdiscountcap dc
           ON dc.customercode = cm.customercode
@@ -1236,7 +1236,7 @@ async function getCustomerMaster(
           COALESCE(cm.nonjporder, 0) AS nonjporder,
           COALESCE(cm.nonjpreturns, 0) AS nonjpreturns,
           COALESCE(cm.nonjpcollections, 0) AS nonjpcollections,
-          COALESCE(cm.toplpo, 0) AS toplpo
+          cm.toplpo
         FROM customermaster cm
         WHERE cm.templateindicator = 1
         AND cm.activecustomer = 1
@@ -1489,7 +1489,7 @@ async function getCustomerMaster(
           COALESCE(cm.nonjporder, 0) AS nonjporder,
           COALESCE(cm.nonjpreturns, 0) AS nonjpreturns,
           COALESCE(cm.nonjpcollections, 0) AS nonjpcollections,
-          COALESCE(cm.toplpo, 0) AS toplpo
+          cm.toplpo
         FROM customermaster cm
         WHERE cm.templateindicator = 1
         AND cm.activecustomer = 1
