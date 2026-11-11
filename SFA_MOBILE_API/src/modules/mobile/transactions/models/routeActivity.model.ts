@@ -7,6 +7,7 @@ import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { nullable, required } from '../../../../shared/utils/commonUtils';
 /** Inserts a customer operation once and prevents duplicate upload records. */
 export async function saveCustomerOperationControl(connection: PoolConnection, item: Record<string, any>): Promise<boolean> {
+    const collectionOnly = Number.parseInt(String(item.collectiononly ?? 0), 10) === 1 ? 1 : 0;
     const [rows] = await connection.execute<(RowDataPacket & {
         count: number;
     })[]>(`
@@ -39,7 +40,8 @@ export async function saveCustomerOperationControl(connection: PoolConnection, i
           latitude = :latitude,
           longitude = :longitude,
           radius = :radius,
-          log_id = :logId
+          log_id = :logId,
+          collectiononly = :collectionOnly
       `, {
             visitKey: required(item.visitkey),
             routeKey: required(item.routekey),
@@ -59,13 +61,18 @@ export async function saveCustomerOperationControl(connection: PoolConnection, i
             latitude: nullable(item.latitude),
             longitude: nullable(item.longitude),
             radius: nullable(item.radius),
-            logId: nullable(item.log_id)
+            logId: nullable(item.log_id),
+            collectionOnly
         });
     }
     return Number(item.routekey) > 0;
 }
 /** Saves a customer visit event used for route activity reporting. */
 export async function saveCustomerVisitLog(connection: PoolConnection, item: Record<string, any>): Promise<boolean> {
+    const cft = Number.parseInt(String(item.cft ?? 0), 10) || 0;
+    const autoCheckout = Number.parseInt(String(item.autocheckout ?? 0), 10) || 0;
+    const onPremiseVisit = Number.parseInt(String(item.onpremisevisit ?? 0), 10) || 0;
+    const holdOrder = Number.parseInt(String(item.holdorder ?? 0), 10) || 0;
     await connection.execute(`
       INSERT INTO customervisitlog SET
         logkey = :logKey,
@@ -77,6 +84,10 @@ export async function saveCustomerVisitLog(connection: PoolConnection, item: Rec
         logstarttime = :logStartTime,
         logenddate = :logEndDate,
         logendtime = :logEndTime,
+        cft = :cft,
+        autocheckout = :autoCheckout,
+        onpremisevisit = :onPremiseVisit,
+        holdorder = :holdOrder,
         mdate = CURRENT_DATE()
       ON DUPLICATE KEY UPDATE
         customercode = VALUES(customercode),
@@ -86,6 +97,10 @@ export async function saveCustomerVisitLog(connection: PoolConnection, item: Rec
         logstarttime = VALUES(logstarttime),
         logenddate = VALUES(logenddate),
         logendtime = VALUES(logendtime),
+        cft = VALUES(cft),
+        autocheckout = VALUES(autocheckout),
+        onpremisevisit = VALUES(onpremisevisit),
+        holdorder = VALUES(holdorder),
         mdate = CURRENT_DATE()
     `, {
         logKey: required(item.log_id),
@@ -96,7 +111,11 @@ export async function saveCustomerVisitLog(connection: PoolConnection, item: Rec
         logStartDate: nullable(item.log_startdate),
         logStartTime: nullable(item.log_starttime),
         logEndDate: nullable(item.log_enddate),
-        logEndTime: nullable(item.log_endtime)
+        logEndTime: nullable(item.log_endtime),
+        cft,
+        autoCheckout,
+        onPremiseVisit,
+        holdOrder
     });
     return Number(item.routekey) > 0;
 }

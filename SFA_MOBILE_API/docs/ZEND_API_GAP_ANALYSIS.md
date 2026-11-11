@@ -192,9 +192,9 @@ Compatibility:
 - `sfa_migration_table_structure.sql`: accepts only 19 parameters.
 - Running the updated PHP against the older procedure will fail with an incorrect parameter-count error.
 
-Node gap:
+Node status:
 
-`saveCustomerOperationControl()` currently stores fields only through `log_id`; it does not store `collectiononly`.
+`saveCustomerOperationControl()` now stores `collectiononly` using the same Zend rule: only numeric value `1` is stored as `1`; missing or other values are stored as `0`.
 
 ### 2. Customer visit log
 
@@ -224,9 +224,9 @@ Compatibility:
 - `sfa_migration_table_structure.sql`: accepts only the original 9 parameters.
 - `autocheckout` is read without an `isset`/null fallback in PHP. Missing payload data can generate an undefined-index notice, although casting commonly produces `0` under the current PHP behavior.
 
-Node gap:
+Node status:
 
-`saveCustomerVisitLog()` currently inserts and updates only the original visit fields and `mdate`. The four new values are ignored.
+`saveCustomerVisitLog()` now stores all four values on insert and update. Missing or invalid legacy payload values fall back to `0`.
 
 ### 3. Route sequence customer status
 
@@ -276,11 +276,11 @@ Severity: **High for CFT reporting accuracy; low for endpoint availability.**
 
 | Business data | Updated Zend | Current Node | Gap |
 | --- | --- | --- | --- |
-| `customeroperationscontrol.collectiononly` | Stored | Not stored | Open |
-| `customervisitlog.cft` | Stored | Not stored | Open |
-| `customervisitlog.autocheckout` | Stored | Not stored | Open |
-| `customervisitlog.onpremisevisit` | Stored | Not stored | Open |
-| `customervisitlog.holdorder` | Stored | Not stored | Open |
+| `customeroperationscontrol.collectiononly` | Stored | Stored with Zend-compatible `0/1` normalization | Implemented |
+| `customervisitlog.cft` | Stored | Stored on insert and update with `0` fallback | Implemented |
+| `customervisitlog.autocheckout` | Stored | Stored on insert and update with `0` fallback | Implemented |
+| `customervisitlog.onpremisevisit` | Stored | Stored on insert and update with `0` fallback | Implemented |
+| `customervisitlog.holdorder` | Stored | Stored on insert and update with `0` fallback | Implemented |
 | `routesequencecustomerstatus.cft` | Stored | Not stored | Open |
 | Customer `customerfacetime`, `toplpo`, and auto-checkout settings | Returned by updated live customer sync procedures | Returned by Node with Zend-compatible defaults and CFT fallback | Implemented |
 | Customer non-JP flags | Returned by updated live customer sync procedures | Returned by Node with `0` defaults | Implemented |
@@ -295,7 +295,7 @@ These gaps are in `SFA_MOBILE_API/src/modules/mobile/transactions/models/routeAc
 
 1. Correct the Zend `invtxndetailAction()` variable from `$params[$i]` to `$j`.
 2. Confirm the production database uses the live 20/13/10-parameter procedure versions before deploying the updated Zend controller.
-3. Add the six new persistence fields to the Node transaction model while preserving default `0` behavior for older mobile payloads.
+3. Add the remaining `routesequencecustomerstatus.cft` field to the Node transaction model. Customer operation and visit-log fields are complete.
 4. CustomerMaster and RouteMaster master-sync parity are complete. Validate both arrays against Zend using the deployed mobile SQLite schema.
 5. Compare Zend and Node master-sync array keys and upload acknowledgements after adding the fields; existing response keys must remain unchanged.
 6. Test customer visit, collection-only visit, auto-checkout, on-premise visit, held order, route sequence upload, and `invtxndetail` upload.
