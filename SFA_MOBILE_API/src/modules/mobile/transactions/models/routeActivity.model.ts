@@ -149,6 +149,7 @@ export async function updateRouteMasterFromUpload(connection: PoolConnection, it
 }
 /** Inserts or updates a customer's route sequence for the requested day. */
 export async function saveCustomerSequence(connection: PoolConnection, item: Record<string, any>): Promise<boolean> {
+    const cft = Number.parseInt(String(item.cft ?? 0), 10) || 0;
     await connection.execute(`
       INSERT INTO temp_cust_seq_sts SET
         routekey = :routeKey,
@@ -186,7 +187,8 @@ export async function saveCustomerSequence(connection: PoolConnection, item: Rec
           sequencenumber = :sequenceNumber,
           schelduledflag = :scheduledFlag,
           servicedflag = :servicedFlag,
-          scannedflag = :scannedFlag
+          scannedflag = :scannedFlag,
+          cft = :cft
       `, {
             routeKey: required(item.routekey),
             sequenceWeekNumber: required(item.seqweeknumber),
@@ -196,7 +198,8 @@ export async function saveCustomerSequence(connection: PoolConnection, item: Rec
             sequenceNumber: nullable(item.sequencenumber),
             scheduledFlag: nullable(item.schelduledflag),
             servicedFlag: nullable(item.servicedflag),
-            scannedFlag: nullable(item.scannedflag)
+            scannedFlag: nullable(item.scannedflag),
+            cft
         });
         return Number(item.routekey) > 0;
     }
@@ -204,7 +207,8 @@ export async function saveCustomerSequence(connection: PoolConnection, item: Rec
       UPDATE routesequencecustomerstatus
       SET
         servicedflag = :servicedFlag,
-        scannedflag = :scannedFlag
+        scannedflag = :scannedFlag,
+        cft = :cft
       WHERE routekey = :routeKey
       AND routecode = :routeCode
       AND customercode = :customerCode
@@ -220,7 +224,8 @@ export async function saveCustomerSequence(connection: PoolConnection, item: Rec
         sequenceNumber: nullable(item.sequencenumber),
         scheduledFlag: nullable(item.schelduledflag),
         servicedFlag: nullable(item.servicedflag),
-        scannedFlag: nullable(item.scannedflag)
+        scannedFlag: nullable(item.scannedflag),
+        cft
     });
     return Number(item.routekey) > 0;
 }

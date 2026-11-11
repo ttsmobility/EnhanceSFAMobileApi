@@ -246,9 +246,9 @@ Compatibility:
 - `sfa_enhance_live_struct.sql`: accepts parameter 10 and stores `cft` on insert/update.
 - `sfa_migration_table_structure.sql`: accepts only 9 parameters.
 
-Node gap:
+Node status:
 
-`saveCustomerSequence()` does not insert or update `cft`.
+`saveCustomerSequence()` now stores `cft` on insert and update with a `0` fallback for older payloads. The temporary sequence-status insert remains unchanged, matching the stored procedure.
 
 ## Defect Found
 
@@ -281,7 +281,7 @@ Severity: **High for CFT reporting accuracy; low for endpoint availability.**
 | `customervisitlog.autocheckout` | Stored | Stored on insert and update with `0` fallback | Implemented |
 | `customervisitlog.onpremisevisit` | Stored | Stored on insert and update with `0` fallback | Implemented |
 | `customervisitlog.holdorder` | Stored | Stored on insert and update with `0` fallback | Implemented |
-| `routesequencecustomerstatus.cft` | Stored | Not stored | Open |
+| `routesequencecustomerstatus.cft` | Stored | Stored on insert and update with `0` fallback | Implemented |
 | Customer `customerfacetime`, `toplpo`, and auto-checkout settings | Returned by updated live customer sync procedures | Returned by Node with Zend-compatible defaults and CFT fallback | Implemented |
 | Customer non-JP flags | Returned by updated live customer sync procedures | Returned by Node with `0` defaults | Implemented |
 | Customer `channel` | Used internally to resolve cluster CFT | Used internally; not exposed as a separate response field | Implemented |
@@ -295,7 +295,7 @@ These gaps are in `SFA_MOBILE_API/src/modules/mobile/transactions/models/routeAc
 
 1. Correct the Zend `invtxndetailAction()` variable from `$params[$i]` to `$j`.
 2. Confirm the production database uses the live 20/13/10-parameter procedure versions before deploying the updated Zend controller.
-3. Add the remaining `routesequencecustomerstatus.cft` field to the Node transaction model. Customer operation and visit-log fields are complete.
+3. All confirmed route-tracking persistence fields are implemented in Node. Validate their stored values against Zend uploads.
 4. CustomerMaster and RouteMaster master-sync parity are complete. Validate both arrays against Zend using the deployed mobile SQLite schema.
 5. Compare Zend and Node master-sync array keys and upload acknowledgements after adding the fields; existing response keys must remain unchanged.
 6. Test customer visit, collection-only visit, auto-checkout, on-premise visit, held order, route sequence upload, and `invtxndetail` upload.
@@ -304,4 +304,4 @@ These gaps are in `SFA_MOBILE_API/src/modules/mobile/transactions/models/routeAc
 
 ## Overall Assessment
 
-The Zend update is small but relies on a broader live-schema feature set that is not yet fully represented in the Node API. The updated Zend is compatible with `sfa_enhance_live_struct.sql`, not with the older migration procedure definitions. CustomerMaster and RouteMaster download parity are complete; transaction-upload fields remain open. One new PHP line in `invtxndetailAction()` is likely incorrect and should be fixed before relying on CFT data from that endpoint.
+The updated Zend is compatible with `sfa_enhance_live_struct.sql`, not with the older migration procedure definitions. CustomerMaster, RouteMaster, and all confirmed route-tracking transaction fields are now implemented in Node. Runtime response and database-value comparison remains required. One new PHP line in `invtxndetailAction()` is likely incorrect and should be fixed before relying on CFT data from that Zend endpoint.
