@@ -1,0 +1,557 @@
+<?php
+
+class Api_ImportController extends Api_Library_Controller_Action_Abstract
+{
+
+    /**
+    * @name       init
+    * @since      16-03-2012
+    * @version    Release: 1
+    * @author     PM <pankit@elantechnologies.com>
+    * @copyright  Elan Technologies
+    * @param
+    *
+    * This is the default function for all Actions.
+    *
+    */
+public function init()
+{
+	$this->SFA_Comman = new SFA_Comman();
+	parent::init();
+	set_time_limit(0);
+}
+ 
+public function rpchainAction()
+{
+	$filename = str_replace('//','/',$_SERVER['DOCUMENT_ROOT'].'/sfa/enhance/log/chain.csv');
+	if (file_exists($filename)) {
+		unlink($filename);
+	}
+	fopen($filename,'a');
+	chmod($filename,0777);
+	$content = file_get_contents('php://input');
+	file_put_contents($filename, $content); 
+
+	exec('start /B C:\wamp\www\sfa\enhance\public\batch\chaincmd.bat');
+	echo "Data imported successfully";
+	exit;
+}
+public function rporderstatusAction()
+{
+	$filename = str_replace('//','/',$_SERVER['DOCUMENT_ROOT'].'/sfa/enhance/log/orderstatus.csv');
+	if (file_exists($filename)) {
+		unlink($filename);
+	}
+	fopen($filename,'a');
+	chmod($filename,0777);
+	$content = file_get_contents('php://input');
+	file_put_contents($filename, $content); 
+
+	exec('start /B C:\wamp\www\sfa\enhance\public\batch\orderstatus.bat');
+	
+	echo "Data imported successfully";
+	exit;
+}
+public function rpcustomerAction()
+{
+	$filename = str_replace('//','/',$_SERVER['DOCUMENT_ROOT'].'/sfa/enhance/log/customer.csv');
+	if (file_exists($filename)) {
+		unlink($filename);
+	}
+	fopen($filename,'a');
+	chmod($filename,0777);
+	$content = file_get_contents('php://input');
+	file_put_contents($filename, $content); 
+
+	exec('start /B C:\wamp\www\sfa\enhance\public\batch\customercmd.bat');
+	echo "Data imported successfully";
+	exit;
+}
+public function rpglmatrixAction()
+{
+	$filename = str_replace('//','/',$_SERVER['DOCUMENT_ROOT'].'/sfa/enhance/log/glmatrix.csv');
+	if (file_exists($filename)) {
+		unlink($filename);
+	}
+	fopen($filename,'a');
+	chmod($filename,0777);
+	$content = file_get_contents('php://input');
+	file_put_contents($filename, $content); 
+
+	exec('start /B C:\wamp\www\sfa\enhance\public\batch\glmatrixcmd.bat');
+	echo "Data imported successfully";
+	exit;
+}
+public function rpitemAction()
+{
+	$filename = str_replace('//','/',$_SERVER['DOCUMENT_ROOT'].'/sfa/enhance/log/item.csv');
+	if (file_exists($filename)) {
+		unlink($filename);
+	}
+	fopen($filename,'a');
+	chmod($filename,0777);
+	$content = file_get_contents('php://input');
+	file_put_contents($filename, $content); 
+
+	exec('start /B C:\wamp\www\sfa\enhance\public\batch\itemcmd.bat');
+	echo "Data imported successfully";
+	exit;
+}
+public function rpitemgroupAction()
+{
+$data = json_decode(file_get_contents('php://input'), true);
+$rp_itemgroup = $data["rp_itemgroup"]; 
+$SFA_Model_Basic = new SFA_Model_Basic();
+$SFA_Model_Basic->deletetable("rp_itemgroup");
+$tablename = "rp_itemgroup";
+$columnname = "(ItemGroupCode,SubMajorcategoryCode,ItemGroupName,ActiveStatus)";
+$columndata= "";
+foreach($rp_itemgroup as $key=>$val) {
+	$columndata .= "(\"".trim($val["ItemGroupCode"])."\", \"".trim($val["SubMajorcategoryCode"])."\",\"".trim($val["ItemGroupName"])."\",".trim($val["ActiveStatus"])."), ";
+}
+
+$SFA_Model_Importdata = new SFA_Model_Importdata();
+
+$SFA_Model_Importdata->saveImportdata($tablename , $columnname, substr($columndata, 0, strlen($columndata)-2));
+exit;
+}
+
+public function divisionroutesettingAction()
+{/*
+$data = json_decode(file_get_contents('php://input'), true);
+$rp_itemgroup = $data["division"]; 
+$SFA_Model_Basic = new SFA_Model_Basic();
+
+$SFA_Model_Basic->deletetable("division_route_setting");
+$tablename = "division_route_setting";
+$columnname = "(Division, 	DivisionName, 	RouteStart, 	RouteEnd, 	BatchPrefix, 	InvoicePrefix)";
+$columndata= "";
+foreach($rp_itemgroup as $key=>$val) {
+	$columndata .= "(\"".trim($val["Division"])."\", \"".trim($val["DivisionName"])."\",\"".trim($val["RouteStart"])."\",\"".trim($val["RouteEnd"])."\",\"".trim($val["BatchPrefix"])."\",\"".trim($val["InvoicePrefix"])."\"), ";
+}
+
+$SFA_Model_Importdata = new SFA_Model_Importdata();
+
+$SFA_Model_Importdata->saveImportdata($tablename , $columnname, substr($columndata, 0, strlen($columndata)-2)); */
+exit;
+}
+public function updateimporttablesAction()
+{
+	$data = json_decode(file_get_contents('php://input'), true);
+	$importtables = $data["importtables"]; 
+
+	foreach($importtables as $key=>$val) {
+	$param = array();
+	$param[1] = trim($val["sman"]);
+	$param[2] = trim($val["item"]);
+	$param[3] = trim($val["load"]);
+	$param[4] = trim($val["customerprice"]);
+	$param[5] = trim($val["customer"]);
+	$param[6] = trim($val["outstanding"]);
+	$param[7] = trim($val["route"]);
+	$param[8] = trim($val["matrix"]);
+	$param[9] = trim($val["warehouse"]);
+	//echo $val["delivery"];
+	if($val["delivery"]=="" || $val["delivery"]==null)
+	{ 
+	$param[10] = 0; }
+	else
+	{ $param[10] = trim($val["delivery"]); }
+	
+	
+	$resultdata = $this->SFA_Comman->executequery('CALL sp_ws_import_getdata_from_importtables(?,?,?,?,?,?,?,?,?,?)',$param,'');
+	}
+exit;
+}
+public function rpoutstandingAction()
+{
+
+	$filename = str_replace('//','/',$_SERVER['DOCUMENT_ROOT'].'/sfa/enhance/log/outstanding.csv');
+	if (file_exists($filename)) {
+		unlink($filename);
+	}
+	fopen($filename,'a');
+	chmod($filename,0777);
+	$content = file_get_contents('php://input');
+	file_put_contents($filename, $content); 
+
+	exec('start /B C:\wamp\www\sfa\enhance\public\batch\outstandingcmd.bat');
+	echo "Data imported successfully";
+	exit;
+}
+public function rprouteAction()
+{
+	$filename = str_replace('//','/',$_SERVER['DOCUMENT_ROOT'].'/sfa/enhance/log/route.csv');
+	if (file_exists($filename)) {
+		unlink($filename);
+	}
+	fopen($filename,'a');
+	chmod($filename,0777);
+	$content = file_get_contents('php://input');
+	file_put_contents($filename, $content);
+
+	exec('start /B C:\wamp\www\sfa\enhance\public\batch\routecmd.bat');
+	echo "Data imported successfully";	
+	exit;
+}
+public function rpsmanAction()
+{
+	$filename = str_replace('//','/',$_SERVER['DOCUMENT_ROOT'].'/sfa/enhance/log/sman.csv');
+	if (file_exists($filename)) {
+		unlink($filename);
+	}
+	fopen($filename,'a');
+	chmod($filename,0777);
+	$content = file_get_contents('php://input');
+	file_put_contents($filename, $content);
+
+	exec('start /B C:\wamp\www\sfa\enhance\public\batch\smancmd.bat');
+	echo "Data imported successfully";	
+exit;
+}
+/*public function rpsppricingcopyAction()
+{
+	
+$data = json_decode(file_get_contents('php://input'), true);
+
+$rp_sppricingcopy = $data["rp_sppricingcopy"];
+//echo count($rp_sppricingcopy);exit;
+$SFA_Model_Basic = new SFA_Model_Basic();
+$SFA_Model_Basic->deletetable("rp_sppricingcopy");
+ $i =0;
+foreach($rp_sppricingcopy as $key=>$val) {
+ 
+$param = array();
+$param[1] = trim($val["pk"]);
+$param[2] = trim($val["ic"]);
+$param[3] = trim($val["des"]);
+$param[4] = trim($val["sd"]);
+$param[5] = trim($val["ed"]);
+$param[6] = trim($val["scp"]);
+$param[7] = trim($val["spp"]);
+$param[8] = trim($val["srcp"]);
+$param[9] = trim($val["srp"]);
+$param[10] = trim($val["Status"]);
+try
+{
+ $resultdata = $this->SFA_Comman->executequery('CALL sp_ws_import_getdata_from_rp_sppricingcopy(?,?,?,?,?,?,?,?,?,?)',$param,'');
+
+}
+catch(Exception $e)
+{
+	echo $e->getMessage()."inside";
+	exit;
+}
+}
+echo $i."here";
+
+exit;
+}*/
+public function rpsppricingAction()
+{
+	$filename = str_replace('//','/',$_SERVER['DOCUMENT_ROOT'].'/sfa/enhance/log/pricing.csv');
+	if (file_exists($filename)) {
+		unlink($filename);
+	}
+	fopen($filename,'a');
+	chmod($filename,0777);
+	$content = file_get_contents('php://input');
+	file_put_contents($filename, $content);
+
+	exec('start /B C:\wamp\www\sfa\enhance\public\batch\sppricingcmd.bat');
+	echo "Data imported successfully";
+	exit;
+}
+public function rpstartloadAction()
+{
+	$filename = str_replace('//','/',$_SERVER['DOCUMENT_ROOT'].'/sfa/enhance/log/startload.csv');
+	if (file_exists($filename)) {
+		unlink($filename);
+	}
+	fopen($filename,'a');
+	chmod($filename,0777);
+	$content = file_get_contents('php://input');
+	file_put_contents($filename, $content);
+
+	exec('start /B C:\wamp\www\sfa\enhance\public\batch\startloadcmd.bat');
+	echo "Data imported successfully";
+	exit;
+}
+public function rptargetAction()
+{
+	$filename = str_replace('//','/',$_SERVER['DOCUMENT_ROOT'].'/sfa/enhance/log/target.csv');
+	if (file_exists($filename)) {
+		unlink($filename);
+	}
+	fopen($filename,'a');
+	chmod($filename,0777);
+	$content = file_get_contents('php://input');
+	file_put_contents($filename, $content);
+
+	exec('start /B C:\wamp\www\sfa\enhance\public\batch\targetcmd.bat');
+	echo "Data imported successfully";
+	exit;
+}
+public function rpwhglmatrixAction()
+{
+	$filename = str_replace('//','/',$_SERVER['DOCUMENT_ROOT'].'/sfa/enhance/log/whglmatrix.csv');
+	if (file_exists($filename)) {
+		unlink($filename);
+	}
+	fopen($filename,'a');
+	chmod($filename,0777);
+	$content = file_get_contents('php://input');
+	file_put_contents($filename, $content);
+
+	exec('start /B C:\wamp\www\sfa\enhance\public\batch\whglmatrixcmd.bat');
+	echo "Data imported successfully";
+	exit;
+}
+public function rpwhstockAction()
+{
+	$filename = str_replace('//','/',$_SERVER['DOCUMENT_ROOT'].'/sfa/enhance/log/whstock.csv');
+	if (file_exists($filename)) {
+		unlink($filename);
+	}
+	fopen($filename,'a');
+	chmod($filename,0777);
+	$content = file_get_contents('php://input');
+	file_put_contents($filename, $content);
+
+	exec('start /B C:\wamp\www\sfa\enhance\public\batch\whstockcmd.bat');
+	echo "Data imported successfully";
+	exit;
+}
+public function testapiAction () {
+	//print_r($this->getRequest()->getPost('salesman',null) );
+	echo "<pre>";//print_r($_SERVER);
+	$data = json_decode(file_get_contents('php://input'), true);
+	print_r($data);
+	//print_r($_REQUEST);
+	exit;
+}
+	
+	//json
+ public function jsonDecode($json)
+    {
+      $json = str_replace(array("\\\\", "\\\""), array("&#92;", "&#34;"), $json);
+      $parts = preg_split("@(\"[^\"]*\")|([\[\]\{\},:])|\s@is", $json, -1, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
+      foreach ($parts as $index => $part)
+      {
+          if (strlen($part) == 1)
+          {
+              switch ($part)
+              {
+                  case "[":
+                  case "{":
+                      $parts[$index] = "array(";
+                      break;
+                  case "]":
+                  case "}":
+                      $parts[$index] = ")";
+                      break;
+                  case ":":
+                    $parts[$index] = "=>";
+                    break;   
+                  case ",":
+                    break;
+                  default:
+                      return null;
+              }
+          }
+          else
+          {
+              if ((substr($part, 0, 1) != "\"") || (substr($part, -1, 1) != "\""))
+              {
+                  return null;
+              }
+          }
+      }
+      $json = str_replace(array("&#92;", "&#34;", "$"), array("\\\\", "\\\"", "\\$"), implode("", $parts));
+      return eval("return $json;");
+    } 
+	
+	
+
+	  public function importfromoracleAction()
+  {
+	   
+	    //*********************** to create log -- starts from here ***********************
+	 
+	    $reqval= $this->getRequest()->getParams();
+
+        $resultreturn = array();    
+		
+		$baseUrl= Zend_Controller_Front::getInstance()->getBaseUrl();
+		$path   = str_replace('//','/',$_SERVER['DOCUMENT_ROOT'].'/sfa/enhance/');		                         
+		
+		$filename = $path.'log/sync_log_'.date('Ymd').'.txt';
+		$trtype ="";
+		
+		
+		if (!file_exists($filename)) {
+			fopen($filename,'a');
+		}
+		chmod($filename,0777);
+		
+		$current = file_get_contents($filename);
+		$current .= "\n";
+		$post = $this->getRequest()->getParams();
+		$current .= "\n".print_r($post,true)."\n";
+		file_put_contents($filename, $current);
+		
+		//*********************** to create log -- Ends here ***********************
+		
+		
+		//*********************** Reading the json data passed , and inserting starts here ***********************
+		
+	
+		$pararminvoice=$this->getRequest()->getRawBody();
+		//$pararminvoice=$this->_getParam();	
+				$withstrip=(stripslashes($pararminvoice));
+				$params = json_decode($withstrip,true);	
+				$ar=array();
+				$arr22=array();
+				//echo count($params);exit;
+				//print_r($params);exit;
+			if(count($params)>0)
+				{
+					for($i=0;$i<count($params);$i++)
+					{
+						$param_array 	= array();
+					   
+						$param_array[1] = $params['DIVISION_CODE'];
+					///$param_array[2] = $params['WAREHOUSE_CODE'];
+						$param_array[2] = $params ['ITEM_CODE'];
+						$param_array[3] = $params ['DESCRIPTION'];
+						$param_array[4] = $params ['LONG_DESCRIPTION'];
+					//$param_array[6] = $params['UOM'];
+					  
+						$param_array[5] = $params ['UNIT_SELLING_PRICE'];
+						$param_array[6] = $params ['UNIT_SELLING_PRICE_PERUNIT'];
+						$param_array[7] = $params ['RETURN_SELLING_PRICE_PERUNIT'];
+						$param_array[8] = $params ['RETURN_PRICE'];
+						$param_array[9] = $params [''];
+						//$param_array[11] = $params['FUTURE_USE1'];
+						//$param_array[12] = $params['FUTURE_USE2'];
+						$param_array[10] = $params ['BRAND_CODE'];
+						$param_array[11] = $params ['CATEGORY_CODE'];
+						$param_array[12] = $params ['SUB_CATEGORY_CODE'];
+						$param_array[13] = $params['BARCODE'];
+						$param_array[14] = $params['UOM_RATE'];
+																	
+					$resultdata = $this->SFA_Comman->executequery('CALL sp_import_data_from_oracle(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',$param_array,'');
+					/*print_r($resultdata);exit;
+					if($this->SFA_Comman->executequery('CALL sp_import_data_from_oracle(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',$param_array,'')){
+				    echo "Data from oracle has imported successfully";exit;}
+				else{
+				echo "error";exit;}*/
+			 echo "Executed";exit;
+					
+					}
+				 
+				
+	  
+	}
+  }
+	
+	
+	  public function importcustomeroracleAction()
+  {
+	   
+	    //*********************** to create log -- starts from here ***********************
+	 
+	    $reqval= $this->getRequest()->getParams();
+
+        $resultreturn = array();    
+		
+		$baseUrl= Zend_Controller_Front::getInstance()->getBaseUrl();
+		$path   = str_replace('//','/',$_SERVER['DOCUMENT_ROOT'].'/sfa/enhance/');		                         
+		
+		$filename = $path.'log/sync_log_'.date('Ymd').'.txt';
+		$trtype ="";
+		
+		
+		if (!file_exists($filename)) {
+			fopen($filename,'a');
+		}
+		chmod($filename,0777);
+		
+		$current = file_get_contents($filename);
+		$current .= "\n";
+		$post = $this->getRequest()->getParams();
+		$current .= "\n".print_r($post,true)."\n";
+		file_put_contents($filename, $current);
+		
+		//*********************** to create log -- Ends here ***********************
+		
+		
+		//*********************** Reading the json data passed , and inserting starts here ***********************
+		
+	
+		$pararminvoice=$this->getRequest()->getRawBody();
+		//$pararminvoice=$this->_getParam();	
+				$withstrip=(stripslashes($pararminvoice));
+				$params = json_decode($withstrip,true);	
+				$ar=array();
+				$arr22=array();
+				//echo count($params);exit;
+				//print_r($params);exit;
+			if(count($params)>0)
+				{
+					for($i=0;$i<count($params);$i++)
+					{
+						$param_array 	= array();
+					   
+						$param_array[1] = $params['Division_Code'];
+						$param_array[2] = $params['CustomerCode'];
+						$param_array[3] = $params['HeadOfficeCode'];
+						$param_array[4] = $params['RouteCode'];
+						$param_array[5] = $params['CustType'];
+						$param_array[6] = $params['CustomerName'];
+						$param_array[7] = $params['CustomerAddress1'];
+						$param_array[8] = $params['CustomerAddress2'];
+						$param_array[9] = $params['CustomerAddress3'];
+						$param_array[10] = $params['ContactName'];
+						$param_array[11] = $params['InvoicePaymentTerms'];
+						$param_array[12] = $params['CreditLimit'];
+						$param_array[13] = $params['GracePeriod'];
+						$param_array[14] = $params['Active'];
+						$param_array[15] = $params['PricingKey'];
+						$param_array[16] = $params['Memo1'];
+						$param_array[17] = $params['Memo2'];
+						$param_array[18] = $params['Territory'];
+						$param_array[19] = $params['Class'];
+						$param_array[20] = $params['Region'];
+						$param_array[21] = $params['Transaction_Anals3'];
+						$param_array[22] = $params['Grouping_Code'];
+						$param_array[23] = $params['Outlet_Quality'];
+						$param_array[24] = $params['OrderLocation'];
+						$param_array[25] = $params['Credit_Days'];
+						$param_array[26] = $params['CreditTerms'];
+
+										 
+					$resultdata = $this->SFA_Comman->executequery('CALL sp_import_customer_from_oracle(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',$param_array,'');
+					 
+					/*if($this->SFA_Comman->executequery('CALL sp_import_data_from_oracle(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',$param_array,'')){
+				    echo "Data from oracle has imported successfully";exit;}
+				else{
+				echo "error";exit;}*/
+			 echo "Executed";exit;
+					
+					}
+				 
+				
+	  
+	}
+		
+		
+
+	//***********************  Reading the json data passed , and inserting ends here ***********************
+	
+		
+		
+  }
+	
+	
+}
