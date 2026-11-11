@@ -962,7 +962,25 @@ async function getCustomerMaster(
           IFNULL(cm.combopromoyn, 0) AS combopromoyn,
           IFNULL(cm.combopromoplan, 0) AS combopromoplan,
           IFNULL(cm.rebateprintyn, 0) AS rebateprintyn,
-          IFNULL(cm.customerfacetime, 0) AS customerfacetime
+          CASE
+            WHEN COALESCE(cm.customerfacetime, 0) = 0 THEN COALESCE(
+              (
+                SELECT IFNULL(ccm.cft, 0)
+                FROM customerclustermapping ccm
+                WHERE ccm.channel = cm.channel
+                AND ccm.divisioncode = cm.divisioncode
+              ),
+              0
+            )
+            ELSE cm.customerfacetime
+          END AS customerfacetime,
+          COALESCE(cm.enableautocheckout, 0) AS enableautocheckout,
+          COALESCE(cm.autocheckoutradius, 0) AS autocheckoutradius,
+          COALESCE(cm.nonjpsales, 0) AS nonjpsales,
+          COALESCE(cm.nonjporder, 0) AS nonjporder,
+          COALESCE(cm.nonjpreturns, 0) AS nonjpreturns,
+          COALESCE(cm.nonjpcollections, 0) AS nonjpcollections,
+          COALESCE(cm.toplpo, 0) AS toplpo
         FROM customermaster cm
         LEFT JOIN customerdiscountcap dc
           ON dc.customercode = cm.customercode
@@ -1200,7 +1218,25 @@ async function getCustomerMaster(
           IFNULL(cm.combopromoyn, 0) AS combopromoyn,
           IFNULL(cm.combopromoplan, 0) AS combopromoplan,
           IFNULL(cm.rebateprintyn, 0) AS rebateprintyn,
-          IFNULL(cm.customerfacetime, 0) AS customerfacetime
+          CASE
+            WHEN COALESCE(cm.customerfacetime, 0) = 0 THEN COALESCE(
+              (
+                SELECT IFNULL(ccm.cft, 0)
+                FROM customerclustermapping ccm
+                WHERE ccm.channel = cm.channel
+                AND ccm.divisioncode = cm.divisioncode
+              ),
+              0
+            )
+            ELSE cm.customerfacetime
+          END AS customerfacetime,
+          COALESCE(cm.enableautocheckout, 0) AS enableautocheckout,
+          COALESCE(cm.autocheckoutradius, 0) AS autocheckoutradius,
+          COALESCE(cm.nonjpsales, 0) AS nonjpsales,
+          COALESCE(cm.nonjporder, 0) AS nonjporder,
+          COALESCE(cm.nonjpreturns, 0) AS nonjpreturns,
+          COALESCE(cm.nonjpcollections, 0) AS nonjpcollections,
+          COALESCE(cm.toplpo, 0) AS toplpo
         FROM customermaster cm
         WHERE cm.templateindicator = 1
         AND cm.activecustomer = 1
@@ -1435,7 +1471,25 @@ async function getCustomerMaster(
           IFNULL(cm.combopromoyn, 0) AS combopromoyn,
           IFNULL(cm.combopromoplan, 0) AS combopromoplan,
           IFNULL(cm.rebateprintyn, 0) AS rebateprintyn,
-          IFNULL(cm.customerfacetime, 0) AS customerfacetime
+          CASE
+            WHEN COALESCE(cm.customerfacetime, 0) = 0 THEN COALESCE(
+              (
+                SELECT IFNULL(ccm.cft, 0)
+                FROM customerclustermapping ccm
+                WHERE ccm.channel = cm.channel
+                AND ccm.divisioncode = cm.divisioncode
+              ),
+              0
+            )
+            ELSE cm.customerfacetime
+          END AS customerfacetime,
+          COALESCE(cm.enableautocheckout, 0) AS enableautocheckout,
+          COALESCE(cm.autocheckoutradius, 0) AS autocheckoutradius,
+          COALESCE(cm.nonjpsales, 0) AS nonjpsales,
+          COALESCE(cm.nonjporder, 0) AS nonjporder,
+          COALESCE(cm.nonjpreturns, 0) AS nonjpreturns,
+          COALESCE(cm.nonjpcollections, 0) AS nonjpcollections,
+          COALESCE(cm.toplpo, 0) AS toplpo
         FROM customermaster cm
         WHERE cm.templateindicator = 1
         AND cm.activecustomer = 1
