@@ -31,7 +31,7 @@ export async function companyIdByDevice(
 ) {
   // Registration and version lookup use one transaction connection.
   const result = await withTransaction(async (connection) => {
-    await ensureDeviceRegistered(connection, request.params.deviceid);
+    //await ensureDeviceRegistered(connection, request.params.deviceid);
     // Null means tbl_version has no configured application version.
     const appVersion = await findLatestAppVersion(connection);
 
@@ -65,7 +65,7 @@ export async function salesmanLogin(
 
   const result = await withTransaction(async (connection) => {
     // Routes approved for automatic registration may bind this device first.
-    await autoAssignDeviceForRegisteredRoute(connection, username, deviceId);
+    //await autoAssignDeviceForRegisteredRoute(connection, username, deviceId);
 
     // These values control login status and the successful response payload.
     const salesmanCount = await countSalesmanByCredentials(connection, username, password);
