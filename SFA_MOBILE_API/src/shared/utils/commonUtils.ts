@@ -4,12 +4,28 @@
  */
 
 import path from 'path';
+import { performance } from 'perf_hooks';
 import type { FastifyRequest } from 'fastify';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { ApiError } from '../middleware/errors';
 
 /** A mysql2 result row whose selected columns are intentionally dynamic. */
 export type GenericRow = RowDataPacket & Record<string, unknown>;
+
+/** Records elapsed wall time, including failed operations, without changing their result. */
+export async function measureDuration<T>(
+  timings: Record<string, number> | undefined,
+  name: string,
+  operation: () => Promise<T> | T
+): Promise<T> {
+  if (!timings) return operation();
+  const started = performance.now();
+  try {
+    return await operation();
+  } finally {
+    timings[name] = Math.round((performance.now() - started) * 100) / 100;
+  }
+}
 
 /** Internal result shape used when reading a route key from MySQL. */
 type RouteKeyRow = RowDataPacket & { routekey: string | number | null };

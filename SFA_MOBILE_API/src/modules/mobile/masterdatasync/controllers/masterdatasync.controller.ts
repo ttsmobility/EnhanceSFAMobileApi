@@ -5,7 +5,7 @@
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { withTransaction } from '../../../../shared/db/transaction';
-import { toFixedDecimalString } from '../../../../shared/utils/commonUtils';
+import { measureDuration, toFixedDecimalString } from '../../../../shared/utils/commonUtils';
 import { getSettingSyncSections } from '../models/setting.model';
 import { getMasterDataSyncSections } from '../models/masterData.model';
 import { getTransactionDataSyncSections } from '../models/transactionData.model';
@@ -38,47 +38,62 @@ export async function masterDataSyncAction(
   reply: FastifyReply
 ) {
   const params = request.params;
-  const result = await withTransaction(async (connection) => {
-    const routeId = Number(params.routeid);
-    const userId = Number(params.userid);
-    const deviceId = params.deviceid;
+  const timings: Record<string, number> = {};
+  let databaseCompleted = false;
+  try {
+    const result = await withTransaction(async (connection) => {
+      const routeId = Number(params.routeid);
+      const userId = Number(params.userid);
+      const deviceId = params.deviceid;
 
-    const settingSections = await getSettingSyncSections(connection, { routeId });
-    const masterDataSections = await getMasterDataSyncSections(connection, { routeId });
-    const transactionDataSections = await getTransactionDataSyncSections(connection, {
-      routeId,
-      userId,
-      deviceId
-    });
+      const settingSections = await measureDuration(timings, 'settingsMs', () =>
+        getSettingSyncSections(connection, { routeId }));
+      const masterDataSections = await measureDuration(timings, 'masterDataMs', () =>
+        getMasterDataSyncSections(connection, { routeId }));
+      const transactionDataSections = await measureDuration(timings, 'transactionDownloadMs', () => getTransactionDataSyncSections(connection, {
+        routeId,
+        userId,
+        deviceId
+      }));
 
-    const { ControlPanel, Setup, companydetail, SalesmanMaster, RouteMaster, startendday, synctime, CurrencyMaster } = settingSections;
-    const { itemmustheader, itemmustdetail, itemgroup, ItemMaster, itempackagemaster, routegoal, avgsalesqty, outletitemcodes, taxmaster, itemnrp, custnrp, customeritemgrp, customeritemmap, CustomerMaster, salescalender, routesequence, customerinvoice, discountkeyheader, discountkeydetail, distributionkeydetails, productgroupheader, productgroupdetail, promokeyheader, promokeydetail, promoplanheader, promoplandetail, promotionassignmentadvanced, customerpricing1, pricingdetail1, POSmaster, customerposinventory, customerposlimit, posinstructions, customersurveyplan, customersurveykeyplan, customersurveykey, customersurveydefinition, customersurveydefassign, lookupindexdetail, nonservreasons, expreasons, expiryreturnreasons, retitmreasons, freegoodreasons, voidreasons, routebook, salestrend, tempcustinventory, customermessages, salesmanmessages, vanmaster, bankmaster, cashdesc, inventorylocation } = masterDataSections;
-    const { startingloaddetail, inventorysummarydetail, salesorderheader, salesorderdetail, suggestedsalesinvoice, inventorytransactiondetail, customer_foc_balance, customer_foc_detail, journeyplancreditlimit, batchexpirydetail, customer_foc, deletemaster } = transactionDataSections;
+      const { ControlPanel, Setup, companydetail, SalesmanMaster, RouteMaster, startendday, synctime, CurrencyMaster } = settingSections;
+      const { itemmustheader, itemmustdetail, itemgroup, ItemMaster, itempackagemaster, routegoal, avgsalesqty, outletitemcodes, taxmaster, itemnrp, custnrp, customeritemgrp, customeritemmap, CustomerMaster, salescalender, routesequence, customerinvoice, discountkeyheader, discountkeydetail, distributionkeydetails, productgroupheader, productgroupdetail, promokeyheader, promokeydetail, promoplanheader, promoplandetail, promotionassignmentadvanced, customerpricing1, pricingdetail1, POSmaster, customerposinventory, customerposlimit, posinstructions, customersurveyplan, customersurveykeyplan, customersurveykey, customersurveydefinition, customersurveydefassign, lookupindexdetail, nonservreasons, expreasons, expiryreturnreasons, retitmreasons, freegoodreasons, voidreasons, routebook, salestrend, tempcustinventory, customermessages, salesmanmessages, vanmaster, bankmaster, cashdesc, inventorylocation } = masterDataSections;
+      const { startingloaddetail, inventorysummarydetail, salesorderheader, salesorderdetail, suggestedsalesinvoice, inventorytransactiondetail, customer_foc_balance, customer_foc_detail, journeyplancreditlimit, batchexpirydetail, customer_foc, deletemaster } = transactionDataSections;
 
-    return buildMasterDataSyncResponse({
-      ControlPanel, Setup, companydetail, SalesmanMaster, RouteMaster, startendday,
-      synctime, CurrencyMaster, itemmustheader, itemmustdetail, itemgroup,
-      ItemMaster, itempackagemaster, routegoal, avgsalesqty, outletitemcodes,
-      taxmaster, startingloaddetail, inventorysummarydetail, CustomerMaster,
-      salescalender, routesequence, customerinvoice, discountkeyheader,
-      discountkeydetail, distributionkeydetails, productgroupheader,
-      productgroupdetail, promokeyheader, promokeydetail, promoplanheader,
-      promoplandetail, promotionassignmentadvanced, customerpricing1,
-      pricingdetail1, POSmaster, customerposinventory, customerposlimit,
-      posinstructions, customersurveyplan, customersurveykeyplan,
-      customersurveykey, customersurveydefinition, customersurveydefassign,
-      lookupindexdetail, nonservreasons, expreasons, expiryreturnreasons,
-      retitmreasons, freegoodreasons, voidreasons, routebook, salestrend,
-      tempcustinventory, customermessages, salesmanmessages, vanmaster,
-      bankmaster, cashdesc, inventorylocation, salesorderheader, salesorderdetail,
-      suggestedsalesinvoice, inventorytransactiondetail, customer_foc_balance,
-      customer_foc_detail, journeyplancreditlimit, batchexpirydetail,
-      customer_foc, itemnrp, custnrp, deletemaster, customeritemgrp,
-      customeritemmap
-    });
-  });
+      return measureDuration(timings, 'responseBuildMs', () => buildMasterDataSyncResponse({
+        ControlPanel, Setup, companydetail, SalesmanMaster, RouteMaster, startendday,
+        synctime, CurrencyMaster, itemmustheader, itemmustdetail, itemgroup,
+        ItemMaster, itempackagemaster, routegoal, avgsalesqty, outletitemcodes,
+        taxmaster, startingloaddetail, inventorysummarydetail, CustomerMaster,
+        salescalender, routesequence, customerinvoice, discountkeyheader,
+        discountkeydetail, distributionkeydetails, productgroupheader,
+        productgroupdetail, promokeyheader, promokeydetail, promoplanheader,
+        promoplandetail, promotionassignmentadvanced, customerpricing1,
+        pricingdetail1, POSmaster, customerposinventory, customerposlimit,
+        posinstructions, customersurveyplan, customersurveykeyplan,
+        customersurveykey, customersurveydefinition, customersurveydefassign,
+        lookupindexdetail, nonservreasons, expreasons, expiryreturnreasons,
+        retitmreasons, freegoodreasons, voidreasons, routebook, salestrend,
+        tempcustinventory, customermessages, salesmanmessages, vanmaster,
+        bankmaster, cashdesc, inventorylocation, salesorderheader, salesorderdetail,
+        suggestedsalesinvoice, inventorytransactiondetail, customer_foc_balance,
+        customer_foc_detail, journeyplancreditlimit, batchexpirydetail,
+        customer_foc, itemnrp, custnrp, deletemaster, customeritemgrp,
+        customeritemmap
+      }));
+    }, timings);
+    databaseCompleted = true;
 
-  await reply.send(result);
+    await reply.send(result);
+  } finally {
+    // Section timings are nested within transactionWorkMs; do not add all fields together.
+    request.log.info({
+      event: 'sync.performance',
+      routeId: params.routeid,
+      databaseCompleted,
+      ...timings
+    }, 'master sync performance');
+  }
 }
 
 /** Orders every response section and supplies an empty array for missing data. */

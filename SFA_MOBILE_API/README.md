@@ -24,6 +24,43 @@ npm start
 GET /health
 ```
 
+## Sync performance diagnostics
+
+At `LOG_LEVEL=info` (or `debug`), master sync emits a structured server log with
+`event: "sync.performance"`, the route ID, and `databaseCompleted`.
+The API response is unchanged. Timing fields are milliseconds:
+
+| Field | Measurement |
+| --- | --- |
+| `connectionWaitMs` | Time acquiring a MySQL connection, including pool wait/setup |
+| `settingsMs` | Settings queries, route updates, and sequence maintenance |
+| `masterDataMs` | Customer, item, pricing, promotion, and other master reads |
+| `transactionDownloadMs` | Inventory, orders, FOC, deletion instructions, and other download reads |
+| `responseBuildMs` | Response formatting and sync counts, excluding JSON serialization |
+| `beginMs`, `commitMs`, `rollbackMs` | Transaction control operations (`rollbackMs` on failure) |
+| `transactionWorkMs` | All work inside the transaction handler |
+| `connectionHeldMs` | Time holding the connection through commit/rollback and release |
+| `databaseTotalMs` | Connection acquisition plus transaction lifetime |
+
+Section timings are included in `transactionWorkMs`, which is included in
+`connectionHeldMs` and `databaseTotalMs`; do not sum every field. Failed operations
+also record their elapsed time. `databaseCompleted: true` means the transaction
+committed; it does not confirm that a disconnected handset received the response.
+Use the existing `request completed` log's `responseTime` for overall request time.
+
+After deployment, run a baseline and then increase concurrency:
+
+```bash
+node scripts/benchmark-sync-routes.js --concurrency 1
+node scripts/benchmark-sync-routes.js --concurrency 5
+node scripts/benchmark-sync-routes.js --concurrency 10
+```
+
+High connection wait points to pool queuing/connection setup. High section times
+identify where to inspect query plans and lock waits. Save benchmark CSV/JSON and
+the corresponding server logs for comparison. A client timeout does not necessarily
+cancel server-side database work, so allow the previous workload to finish first.
+
 ## Mobile database backup upload
 
 The native app's `DBHelper.java` posts database backups to
