@@ -13,7 +13,7 @@ import {
 import {
   autoAssignDeviceForRegisteredRoute,
   countSalesmanByCredentials,
-  ensureDeviceRegistered,
+  isDeviceRegistered,
   findAssignedDeviceIdByCredentials,
   findLatestAppVersion,
   findRouteCodeBySalesman,
@@ -24,14 +24,17 @@ import {
   insertSyncService
 } from '../models/auth.model';
 
-/** Registers a device and returns the legacy application-version response. */
+/** Checks an existing device registration and returns the application version. */
 export async function companyIdByDevice(
   request: FastifyRequest<{ Params: Record<string, string> }>,
   reply: FastifyReply
 ) {
-  // Registration and version lookup use one transaction connection.
+  // Device validation and version lookup use one transaction connection.
   const result = await withTransaction(async (connection) => {
-    //await ensureDeviceRegistered(connection, request.params.deviceid);
+    if (!(await isDeviceRegistered(connection, request.params.deviceid))) {
+      // The mobile app displays its registration prompt for an empty array.
+      return [];
+    }
     // Null means tbl_version has no configured application version.
     const appVersion = await findLatestAppVersion(connection);
 

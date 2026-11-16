@@ -6,28 +6,28 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 
 /**
- * Registers a previously unknown handset. `INSERT IGNORE` makes repeated
- * device-check calls safe and leaves an existing registration unchanged.
+ * Checks an existing handset registration without creating or updating records.
  *
  * @param connection Active database transaction connection.
  * @param deviceId Mobile handset identifier stored in tbl_device.
- * @returns Resolves after the registration attempt completes.
+ * @returns Whether the handset already exists in tbl_device.
  */
-export async function ensureDeviceRegistered(
+export async function isDeviceRegistered(
   connection: PoolConnection,
   deviceId: string
-): Promise<void> {
-  await connection.execute(
+): Promise<boolean> {
+  const [rows] = await connection.execute<RowDataPacket[]>(
     `
-      INSERT IGNORE INTO tbl_device (company_id, device_id, remarks)
-      VALUES (:companyId, :deviceId, :remarks)
+      SELECT 1 AS registered
+      FROM tbl_device
+      WHERE device_id = :deviceId
+      LIMIT 1
     `,
     {
-      companyId: 1,
-      deviceId,
-      remarks: 'Auto Registered'
+      deviceId
     }
   );
+  return rows.length > 0;
 }
 /**
  * @param connection Active database transaction connection.
