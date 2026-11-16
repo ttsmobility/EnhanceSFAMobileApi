@@ -11,6 +11,8 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   SYNC_QUERY_TIMING_ENABLED: z.string().default('false').transform((value) => value.toLowerCase() === 'true'),
   SYNC_PRODUCT_GROUP_OPTIMIZATION_ENABLED: z.string().default('false').transform((value) => value.toLowerCase() === 'true'),
+  SYNC_CUSTOMER_OPTIMIZATION_ENABLED: z.string().default('false').transform((value) => value.toLowerCase() === 'true'),
+  SYNC_SEQUENCE_OPTIMIZATION_ENABLED: z.string().default('false').transform((value) => value.toLowerCase() === 'true'),
   DEBUG_PAYLOAD: z.coerce.boolean().default(false),
   FILE_LOG_ENABLED: z.string().default('false').transform((value) => value.toLowerCase() === 'true'),
   FILE_LOG_PATH: z.string().default('./logs'),

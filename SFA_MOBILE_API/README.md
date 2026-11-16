@@ -26,6 +26,44 @@ GET /health
 
 ## Sync performance diagnostics
 
+### Customer and settings candidates
+
+Two additional candidates are disabled until the target database comparison passes:
+
+```dotenv
+SYNC_CUSTOMER_OPTIMIZATION_ENABLED=false
+SYNC_SEQUENCE_OPTIMIZATION_ENABLED=false
+```
+
+The customer candidate replaces the per-row face-time fallback subquery with a
+join. It retains route/template UNION behavior and all response columns, and only
+joins for customers requiring the fallback. It requires a unique
+`customerclustermapping(channel, divisioncode)` mapping. The sequence candidate
+collects transaction maxima in one SELECT (plus the route configuration SELECT),
+instead of revisiting tables in separate queries. Existing route UPDATEs, DEX
+rules, sequence parsing and empty-value defaults are retained. A consolidated
+aggregate may be slower than separate index-assisted MAX lookups on some databases;
+enable each candidate independently only if its measured timings improve.
+
+```bash
+npm run build
+node scripts/compare-sync-hotspots.js --routes 1818,1819,1820 --repeats 3 --explain
+```
+
+This uses the `.env` database, compares all customer values and the six computed
+route sequence values inside read-only snapshots, and writes
+`performance-results/sync-hotspots-*.json`. It never runs settings UPDATEs. The
+report includes deployed indexes and SQL for uncovered index candidates. Those
+statements are suggestions for review against execution plans and write/storage
+costs, not instructions to apply all of them. The script never executes DDL.
+If cluster uniqueness is not enforced, leave the customer candidate disabled.
+
+With `SYNC_QUERY_TIMING_ENABLED=true`, the server now emits both
+`sync.settings.queries` and `sync.masterdata.queries`. Settings timings include
+individual reads and writes, so bottlenecks outside sequence calculation can be
+identified. Keep the database connection limit at the validated value of 10 for
+comparative tests; no connection-limit change is part of these candidates.
+
 ### Promotion product-group optimization
 
 The optional product-group path resolves eligible route promotions once and

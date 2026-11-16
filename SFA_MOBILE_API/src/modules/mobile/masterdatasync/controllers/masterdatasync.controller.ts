@@ -42,6 +42,7 @@ export async function masterDataSyncAction(
   const params = request.params;
   const timings: Record<string, number> = {};
   const queryTimings: DatabaseQueryTiming[] | undefined = env.SYNC_QUERY_TIMING_ENABLED ? [] : undefined;
+  const settingsTimings: DatabaseQueryTiming[] | undefined = env.SYNC_QUERY_TIMING_ENABLED ? [] : undefined;
   let databaseCompleted = false;
   try {
     const result = await withTransaction(async (connection) => {
@@ -50,7 +51,7 @@ export async function masterDataSyncAction(
       const deviceId = params.deviceid;
 
       const settingSections = await measureDuration(timings, 'settingsMs', () =>
-        getSettingSyncSections(connection, { routeId }));
+        getSettingSyncSections(connection, { routeId }, settingsTimings));
       const masterDataSections = await measureDuration(timings, 'masterDataMs', () =>
         getMasterDataSyncSections(connection, { routeId }, queryTimings));
       const transactionDataSections = await measureDuration(timings, 'transactionDownloadMs', () => getTransactionDataSyncSections(connection, {
@@ -89,24 +90,27 @@ export async function masterDataSyncAction(
 
     await reply.send(result);
   } finally {
-    if (queryTimings) {
+    for (const [phase, queries] of [['masterdata', queryTimings], ['settings', settingsTimings]] as const) {
+      if (!queries) continue;
       request.log.info({
-        event: 'sync.masterdata.queries',
+        event: `sync.${phase}.queries`,
         routeId: params.routeid,
         databaseCompleted,
         mode: 'sequential-diagnostics',
-        queryCount: queryTimings.length,
-        totalQueryMs: Math.round(queryTimings.reduce((sum, query) => sum + query.elapsedMs, 0) * 100) / 100,
+        queryCount: queries.length,
+        totalQueryMs: Math.round(queries.reduce((sum, query) => sum + query.elapsedMs, 0) * 100) / 100,
         // Full SQL is captured only for the ten slowest queries; bind values are omitted.
-        slowestQueries: [...queryTimings].sort((a, b) => b.elapsedMs - a.elapsedMs).slice(0, 10),
-        queries: queryTimings.map(({ sql, ...summary }) => summary)
-      }, 'master data query performance');
+        slowestQueries: [...queries].sort((a, b) => b.elapsedMs - a.elapsedMs).slice(0, 10),
+        queries: queries.map(({ sql, ...summary }) => summary)
+      }, `${phase} query performance`);
     }
     // Section timings are nested within transactionWorkMs; do not add all fields together.
     request.log.info({
       event: 'sync.performance',
       routeId: params.routeid,
       productGroupOptimization: env.SYNC_PRODUCT_GROUP_OPTIMIZATION_ENABLED,
+      customerOptimization: env.SYNC_CUSTOMER_OPTIMIZATION_ENABLED,
+      sequenceOptimization: env.SYNC_SEQUENCE_OPTIMIZATION_ENABLED,
       databaseCompleted,
       ...timings
     }, 'master sync performance');

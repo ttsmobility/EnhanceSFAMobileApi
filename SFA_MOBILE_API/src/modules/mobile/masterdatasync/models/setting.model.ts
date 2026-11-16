@@ -4,14 +4,25 @@
  */
 
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
-import { buildInClause, getLatestClosedRouteKey } from '../../../../shared/utils/commonUtils';
-import type { GenericRow } from '../../../../shared/utils/commonUtils';
+import { buildInClause, createQueryTimingConnection, getLatestClosedRouteKey } from '../../../../shared/utils/commonUtils';
+import type { DatabaseQueryTiming, GenericRow } from '../../../../shared/utils/commonUtils';
+
+import { env } from '../../../../config/env';
+import { getRouteSequenceValues } from './routeSequence.model';
 
 /** Applies route sync side effects and returns all setting-related response sections. */
 export async function getSettingSyncSections(
   connection: PoolConnection,
-  input: Record<string, any>
+  input: Record<string, any>,
+  queryTimings?: DatabaseQueryTiming[]
 ) {
+  if (queryTimings) connection = createQueryTimingConnection(connection, queryTimings);
+  async function loadSections(tasks: Array<() => Promise<GenericRow[]>>) {
+    if (!queryTimings) return Promise.all(tasks.map(task => task()));
+    const rows: GenericRow[][] = [];
+    for (const task of tasks) rows.push(await task());
+    return rows;
+  }
   const latestRouteKey = await getLatestClosedRouteKey(connection, input.routeId);
 
   await maintainRouteSyncSideEffects(connection, {
@@ -30,15 +41,15 @@ export async function getSettingSyncSections(
     startEndDay,
     syncTime,
     currencyMaster
-  ] = await Promise.all([
-    getControlPanel(connection),
-    getSetup(connection),
-    getCompanyDetail(connection),
-    getSalesmanMaster(connection, input.routeId),
-    getRouteMaster(connection, routeCodes),
-    getStartEndDay(connection, input.routeId),
-    getSyncTime(connection),
-    getCurrencyMaster(connection, input.routeId)
+  ] = await loadSections([
+    () => getControlPanel(connection),
+    () => getSetup(connection),
+    () => getCompanyDetail(connection),
+    () => getSalesmanMaster(connection, input.routeId),
+    () => getRouteMaster(connection, routeCodes),
+    () => getStartEndDay(connection, input.routeId),
+    () => getSyncTime(connection),
+    () => getCurrencyMaster(connection, input.routeId)
   ]);
 
   return {
@@ -132,32 +143,7 @@ async function updateRouteSequenceNumbers(
   connection: PoolConnection,
   routeId: number
 ): Promise<void> {
-  const [routeRows] = await connection.execute<
-    (RowDataPacket & { transactionnoseq: number | null })[]
-  >(
-    `
-      SELECT COALESCE(transactionnoseq, 0) AS transactionnoseq
-      FROM routemaster
-      WHERE routecode = :routeId
-      LIMIT 1
-    `,
-    { routeId }
-  );
-
-  const useDexFlagSequences = Number(routeRows[0]?.transactionnoseq ?? 0) > 0;
-
-  const invoiceNumber = useDexFlagSequences
-    ? await getMaxInvoiceNumber(connection, routeId, 0)
-    : await getMaxInvoiceNumber(connection, routeId);
-  const invoiceReturnNumber = useDexFlagSequences
-    ? await getMaxInvoiceNumber(connection, routeId, 1)
-    : invoiceNumber;
-  const swapNumber = useDexFlagSequences
-    ? await getMaxInvoiceNumber(connection, routeId, 2)
-    : invoiceNumber;
-  const arNumber = await getMaxArNumber(connection, routeId);
-  const orderNumber = await getMaxSalesOrderNumber(connection, routeId);
-  const documentNumber = await getMaxDocumentNumber(connection, routeId);
+  const sequences = await getRouteSequenceValues(connection, routeId, env.SYNC_SEQUENCE_OPTIMIZATION_ENABLED);
 
   await connection.execute(
     `
@@ -172,16 +158,7 @@ async function updateRouteSequenceNumbers(
       WHERE routecode = :routeId
     `,
     {
-      invoiceSequence: toRouteTransactionSequence(invoiceNumber, routeId, true),
-      invoiceReturnSequence: toRouteTransactionSequence(
-        invoiceReturnNumber,
-        routeId,
-        true
-      ),
-      swapSequence: toRouteTransactionSequence(swapNumber, routeId, true),
-      arSequence: toRouteTransactionSequence(arNumber, routeId, true),
-      orderSequence: toRouteTransactionSequence(orderNumber, routeId, true),
-      documentSequence: toRouteTransactionSequence(documentNumber, routeId, false),
+      ...sequences,
       routeId
     }
   );
@@ -204,119 +181,6 @@ async function updateRouteSequenceNumbers(
     `,
     { routeId }
   );
-}
-
-/** Returns the highest invoice number currently stored for the route. */
-async function getMaxInvoiceNumber(
-  connection: PoolConnection,
-  routeId: number,
-  dexFlag?: number
-): Promise<string> {
-  const dexFlagFilter = dexFlag === undefined ? '' : 'AND dexflag = :dexFlag';
-  const params: Record<string, number> =
-    dexFlag === undefined ? { routeId } : { routeId, dexFlag };
-  const [rows] = await connection.execute<
-    (RowDataPacket & { invoicenumber: number | null })[]
-  >(
-    `
-      SELECT COALESCE(MAX(invoicenumber), 0) AS invoicenumber
-      FROM invoiceheader
-      WHERE routecode = :routeId
-      ${dexFlagFilter}
-    `,
-    params
-  );
-
-  return String(rows[0]?.invoicenumber ?? '0');
-}
-
-/** Returns the highest AR document number currently stored for the route. */
-async function getMaxArNumber(
-  connection: PoolConnection,
-  routeId: number
-): Promise<string> {
-  const [rows] = await connection.execute<
-    (RowDataPacket & { invoicenumber: number | null })[]
-  >(
-    `
-      SELECT COALESCE(MAX(invoicenumber), 0) AS invoicenumber
-      FROM arheader
-      WHERE routecode = :routeId
-    `,
-    { routeId }
-  );
-
-  return String(rows[0]?.invoicenumber ?? '0');
-}
-
-/** Returns the highest sales-order number currently stored for the route. */
-async function getMaxSalesOrderNumber(
-  connection: PoolConnection,
-  routeId: number
-): Promise<string> {
-  const [rows] = await connection.execute<
-    (RowDataPacket & { invoicenumber: number | null })[]
-  >(
-    `
-      SELECT COALESCE(MAX(invoicenumber), 0) AS invoicenumber
-      FROM salesorderheader
-      WHERE routecode = :routeId
-    `,
-    { routeId }
-  );
-
-  return String(rows[0]?.invoicenumber ?? '0');
-}
-
-/** Returns the highest document number across route transaction tables. */
-async function getMaxDocumentNumber(
-  connection: PoolConnection,
-  routeId: number
-): Promise<string> {
-  const [rows] = await connection.execute<
-    (RowDataPacket & { maxdocumentnumber: number | null })[]
-  >(
-    `
-      SELECT MAX(maxdocumentnumber) AS maxdocumentnumber
-      FROM (
-        SELECT COALESCE(MAX(documentnumber), 0) AS maxdocumentnumber
-        FROM inventorytransactionheader
-        WHERE routecode = :routeId
-        UNION
-        SELECT COALESCE(MAX(documentnumber), 0) AS maxdocumentnumber
-        FROM invoiceheader
-        WHERE routecode = :routeId
-        UNION
-        SELECT COALESCE(MAX(documentnumber), 0) AS maxdocumentnumber
-        FROM salesorderheader
-        WHERE routecode = :routeId
-        UNION
-        SELECT COALESCE(MAX(documentnumber), 0) AS maxdocumentnumber
-        FROM arheader
-        WHERE routecode = :routeId
-      ) tblmax
-    `,
-    { routeId }
-  );
-
-  return String(rows[0]?.maxdocumentnumber ?? '0');
-}
-
-/** Converts a maximum document number into the next route sequence component. */
-function toRouteTransactionSequence(
-  value: string,
-  routeId: number,
-  hasSeparatorAfterRoute: boolean
-): number {
-  if (value === '0') {
-    return 1;
-  }
-
-  const prefixLength = String(routeId).length + (hasSeparatorAfterRoute ? 1 : 0);
-  const sequencePart = value.slice(prefixLength);
-  const sequence = Number.parseInt(sequencePart, 10);
-
-  return Number.isNaN(sequence) ? 0 : sequence;
 }
 
 /** Resolves all route codes whose sequence state participates in this sync. */

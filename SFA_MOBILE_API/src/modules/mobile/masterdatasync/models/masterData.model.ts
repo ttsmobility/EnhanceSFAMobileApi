@@ -68,7 +68,7 @@ export async function getMasterDataSyncSections(
 
   const [CustomerMaster, salescalender, routesequence, customerinvoice] =
     await loadSections([
-      () => getCustomerMaster(connection, input.routeId, routeCustomerCodes),
+      () => getCustomerMaster(connection, input.routeId, routeCustomerCodes, env.SYNC_CUSTOMER_OPTIMIZATION_ENABLED),
       () => getSalesCalendar(connection),
       () => getRouteSequence(
         connection,
@@ -628,7 +628,7 @@ async function getCustomerItemMap(
 }
 
 /** Resolves customer codes eligible for the route on the current call day. */
-async function getRouteCustomerCodes(
+export async function getRouteCustomerCodes(
   connection: PoolConnection,
   routeId: number,
 ): Promise<Array<number | string>> {
@@ -726,10 +726,11 @@ async function getRouteSequenceWeek(
 }
 
 /** Returns route customers and templates with the exact Zend response columns. */
-async function getCustomerMaster(
+export async function getCustomerMaster(
   connection: PoolConnection,
   routeId: number,
   routeCustomerCodes: Array<number | string>,
+  optimized = false,
 ): Promise<GenericRow[]> {
   const [routeRows] = await connection.execute<
     (RowDataPacket & {
@@ -750,6 +751,15 @@ async function getCustomerMaster(
 
   const division = routeRows[0]?.division ?? 0;
   const defaultItemMustKey = routeRows[0]?.itemmustkey ?? 0;
+
+  // Probe the unique cluster mapping only when the customer needs its fallback.
+  const faceTimeFallbackSql = optimized ? 'IFNULL(ccm.cft, 0)' : `(
+    SELECT IFNULL(ccm.cft, 0) FROM customerclustermapping ccm
+    WHERE ccm.channel = cm.channel AND ccm.divisioncode = cm.divisioncode
+  )`;
+  const faceTimeJoinSql = optimized ? `LEFT JOIN customerclustermapping ccm
+    ON COALESCE(cm.customerfacetime, 0) = 0
+    AND ccm.channel = cm.channel AND ccm.divisioncode = cm.divisioncode` : '';
 
   const customerMasterSql =
     routeCustomerCodes.length > 0
@@ -985,12 +995,7 @@ async function getCustomerMaster(
           IFNULL(cm.rebateprintyn, 0) AS rebateprintyn,
           CASE
             WHEN COALESCE(cm.customerfacetime, 0) = 0 THEN COALESCE(
-              (
-                SELECT IFNULL(ccm.cft, 0)
-                FROM customerclustermapping ccm
-                WHERE ccm.channel = cm.channel
-                AND ccm.divisioncode = cm.divisioncode
-              ),
+              ${faceTimeFallbackSql},
               0
             )
             ELSE cm.customerfacetime
@@ -1003,6 +1008,7 @@ async function getCustomerMaster(
           COALESCE(cm.nonjpcollections, 0) AS nonjpcollections,
           cm.toplpo
         FROM customermaster cm
+        ${faceTimeJoinSql}
         LEFT JOIN customerdiscountcap dc
           ON dc.customercode = cm.customercode
           AND dc.divison = ?
@@ -1241,12 +1247,7 @@ async function getCustomerMaster(
           IFNULL(cm.rebateprintyn, 0) AS rebateprintyn,
           CASE
             WHEN COALESCE(cm.customerfacetime, 0) = 0 THEN COALESCE(
-              (
-                SELECT IFNULL(ccm.cft, 0)
-                FROM customerclustermapping ccm
-                WHERE ccm.channel = cm.channel
-                AND ccm.divisioncode = cm.divisioncode
-              ),
+              ${faceTimeFallbackSql},
               0
             )
             ELSE cm.customerfacetime
@@ -1259,6 +1260,7 @@ async function getCustomerMaster(
           COALESCE(cm.nonjpcollections, 0) AS nonjpcollections,
           cm.toplpo
         FROM customermaster cm
+        ${faceTimeJoinSql}
         WHERE cm.templateindicator = 1
         AND cm.activecustomer = 1
       `
@@ -1494,12 +1496,7 @@ async function getCustomerMaster(
           IFNULL(cm.rebateprintyn, 0) AS rebateprintyn,
           CASE
             WHEN COALESCE(cm.customerfacetime, 0) = 0 THEN COALESCE(
-              (
-                SELECT IFNULL(ccm.cft, 0)
-                FROM customerclustermapping ccm
-                WHERE ccm.channel = cm.channel
-                AND ccm.divisioncode = cm.divisioncode
-              ),
+              ${faceTimeFallbackSql},
               0
             )
             ELSE cm.customerfacetime
@@ -1512,6 +1509,7 @@ async function getCustomerMaster(
           COALESCE(cm.nonjpcollections, 0) AS nonjpcollections,
           cm.toplpo
         FROM customermaster cm
+        ${faceTimeJoinSql}
         WHERE cm.templateindicator = 1
         AND cm.activecustomer = 1
       `;

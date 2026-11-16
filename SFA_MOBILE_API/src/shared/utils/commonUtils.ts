@@ -22,7 +22,7 @@ export type DatabaseQueryTiming = {
 };
 
 /**
- * Profiles promise-based SELECT calls without logging bind values or modifying the
+ * Profiles promise-based database calls without logging bind values or modifying the
  * pooled connection. Callers must run operations sequentially so elapsedMs does
  * not include other queries waiting on the same mysql2 connection.
  */
@@ -44,7 +44,7 @@ export function createQueryTimingConnection(
           elapsedMs: 0,
           rows: null,
           failed: true,
-          tables: [...new Set([...sql.matchAll(/\b(?:FROM|JOIN)\s+([`\w.]+)/gi)]
+          tables: [...new Set([...sql.matchAll(/\b(?:FROM|JOIN|UPDATE|INTO)\s+([`\w.]+)/gi)]
             .map(match => match[1].replace(/`/g, '')))],
           sql: sql.replace(/\s+/g, ' ').trim()
         };
