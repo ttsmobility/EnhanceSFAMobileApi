@@ -4,8 +4,10 @@
  */
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { env } from '../../../../config/env';
 import { withTransaction } from '../../../../shared/db/transaction';
 import { measureDuration, toFixedDecimalString } from '../../../../shared/utils/commonUtils';
+import type { DatabaseQueryTiming } from '../../../../shared/utils/commonUtils';
 import { getSettingSyncSections } from '../models/setting.model';
 import { getMasterDataSyncSections } from '../models/masterData.model';
 import { getTransactionDataSyncSections } from '../models/transactionData.model';
@@ -39,6 +41,7 @@ export async function masterDataSyncAction(
 ) {
   const params = request.params;
   const timings: Record<string, number> = {};
+  const queryTimings: DatabaseQueryTiming[] | undefined = env.SYNC_QUERY_TIMING_ENABLED ? [] : undefined;
   let databaseCompleted = false;
   try {
     const result = await withTransaction(async (connection) => {
@@ -49,7 +52,7 @@ export async function masterDataSyncAction(
       const settingSections = await measureDuration(timings, 'settingsMs', () =>
         getSettingSyncSections(connection, { routeId }));
       const masterDataSections = await measureDuration(timings, 'masterDataMs', () =>
-        getMasterDataSyncSections(connection, { routeId }));
+        getMasterDataSyncSections(connection, { routeId }, queryTimings));
       const transactionDataSections = await measureDuration(timings, 'transactionDownloadMs', () => getTransactionDataSyncSections(connection, {
         routeId,
         userId,
@@ -86,6 +89,19 @@ export async function masterDataSyncAction(
 
     await reply.send(result);
   } finally {
+    if (queryTimings) {
+      request.log.info({
+        event: 'sync.masterdata.queries',
+        routeId: params.routeid,
+        databaseCompleted,
+        mode: 'sequential-diagnostics',
+        queryCount: queryTimings.length,
+        totalQueryMs: Math.round(queryTimings.reduce((sum, query) => sum + query.elapsedMs, 0) * 100) / 100,
+        // Full SQL is captured only for the ten slowest queries; bind values are omitted.
+        slowestQueries: [...queryTimings].sort((a, b) => b.elapsedMs - a.elapsedMs).slice(0, 10),
+        queries: queryTimings.map(({ sql, ...summary }) => summary)
+      }, 'master data query performance');
+    }
     // Section timings are nested within transactionWorkMs; do not add all fields together.
     request.log.info({
       event: 'sync.performance',

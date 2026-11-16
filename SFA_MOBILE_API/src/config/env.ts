@@ -9,6 +9,7 @@ import { z } from 'zod';
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  SYNC_QUERY_TIMING_ENABLED: z.string().default('false').transform((value) => value.toLowerCase() === 'true'),
   DEBUG_PAYLOAD: z.coerce.boolean().default(false),
   FILE_LOG_ENABLED: z.string().default('false').transform((value) => value.toLowerCase() === 'true'),
   FILE_LOG_PATH: z.string().default('./logs'),

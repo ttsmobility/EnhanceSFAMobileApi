@@ -12,6 +12,56 @@ import { ApiError } from '../middleware/errors';
 /** A mysql2 result row whose selected columns are intentionally dynamic. */
 export type GenericRow = RowDataPacket & Record<string, unknown>;
 
+export type DatabaseQueryTiming = {
+  query: number;
+  elapsedMs: number;
+  rows: number | null;
+  failed: boolean;
+  tables: string[];
+  sql: string;
+};
+
+/**
+ * Profiles promise-based SELECT calls without logging bind values or modifying the
+ * pooled connection. Callers must run operations sequentially so elapsedMs does
+ * not include other queries waiting on the same mysql2 connection.
+ */
+export function createQueryTimingConnection(
+  connection: PoolConnection,
+  timings: DatabaseQueryTiming[]
+): PoolConnection {
+  return new Proxy(connection, {
+    get(target, property) {
+      const method = Reflect.get(target, property);
+      if (property !== 'execute' && property !== 'query') {
+        return typeof method === 'function' ? method.bind(target) : method;
+      }
+      return async (...args: unknown[]) => {
+        const started = performance.now();
+        const sql = typeof args[0] === 'string' ? args[0] : '';
+        const sample: DatabaseQueryTiming = {
+          query: timings.length + 1,
+          elapsedMs: 0,
+          rows: null,
+          failed: true,
+          tables: [...new Set([...sql.matchAll(/\b(?:FROM|JOIN)\s+([`\w.]+)/gi)]
+            .map(match => match[1].replace(/`/g, '')))],
+          sql: sql.replace(/\s+/g, ' ').trim()
+        };
+        timings.push(sample);
+        try {
+          const result = await Reflect.apply(method, target, args);
+          sample.failed = false;
+          sample.rows = Array.isArray(result) && Array.isArray(result[0]) ? result[0].length : null;
+          return result;
+        } finally {
+          sample.elapsedMs = Math.round((performance.now() - started) * 100) / 100;
+        }
+      };
+    }
+  });
+}
+
 /** Records elapsed wall time, including failed operations, without changing their result. */
 export async function measureDuration<T>(
   timings: Record<string, number> | undefined,

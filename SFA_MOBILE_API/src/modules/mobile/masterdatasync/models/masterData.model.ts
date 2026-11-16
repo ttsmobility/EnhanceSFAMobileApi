@@ -6,15 +6,27 @@
 import type { PoolConnection, RowDataPacket } from "mysql2/promise";
 import {
   buildInClause,
+  createQueryTimingConnection,
   tableExists,
 } from "../../../../shared/utils/commonUtils";
-import type { GenericRow } from "../../../../shared/utils/commonUtils";
+import type { DatabaseQueryTiming, GenericRow } from "../../../../shared/utils/commonUtils";
 
 /** Loads all product, customer, promotion, survey, reason, and reference sections. */
 export async function getMasterDataSyncSections(
   connection: PoolConnection,
   input: Record<string, any>,
+  queryTimings?: DatabaseQueryTiming[],
 ) {
+  if (queryTimings) connection = createQueryTimingConnection(connection, queryTimings);
+
+  // Diagnostic mode avoids mysql2's single-connection queue being mistaken for
+  // execution time. Normal mode retains the existing Promise.all scheduling.
+  async function loadSections(tasks: Array<() => Promise<GenericRow[]>>) {
+    if (!queryTimings) return Promise.all(tasks.map(task => task()));
+    const results: GenericRow[][] = [];
+    for (const task of tasks) results.push(await task());
+    return results;
+  }
   const routeCustomerCodes = await getRouteCustomerCodes(
     connection,
     input.routeId,
@@ -35,33 +47,33 @@ export async function getMasterDataSyncSections(
     custnrp,
     customeritemgrp,
     customeritemmap,
-  ] = await Promise.all([
-    getItemGroup(connection, input.routeId),
-    getItemMaster(connection, input.routeId),
-    getItemPackageMaster(connection),
-    getRouteGoal(connection, input.routeId),
-    getAverageSalesQty(connection, input.routeId),
-    getOutletItemCodes(connection, input.routeId),
-    getTaxMaster(connection),
-    getItemMustHeader(connection, input.routeId),
-    getItemMustDetail(connection, input.routeId),
-    getItemNrp(connection, input.routeId),
-    getCustomerNrp(connection, input.routeId),
-    getCustomerItemGroups(connection, input.routeId),
-    getCustomerItemMap(connection, input.routeId),
+  ] = await loadSections([
+    () => getItemGroup(connection, input.routeId),
+    () => getItemMaster(connection, input.routeId),
+    () => getItemPackageMaster(connection),
+    () => getRouteGoal(connection, input.routeId),
+    () => getAverageSalesQty(connection, input.routeId),
+    () => getOutletItemCodes(connection, input.routeId),
+    () => getTaxMaster(connection),
+    () => getItemMustHeader(connection, input.routeId),
+    () => getItemMustDetail(connection, input.routeId),
+    () => getItemNrp(connection, input.routeId),
+    () => getCustomerNrp(connection, input.routeId),
+    () => getCustomerItemGroups(connection, input.routeId),
+    () => getCustomerItemMap(connection, input.routeId),
   ]);
 
   const [CustomerMaster, salescalender, routesequence, customerinvoice] =
-    await Promise.all([
-      getCustomerMaster(connection, input.routeId, routeCustomerCodes),
-      getSalesCalendar(connection),
-      getRouteSequence(
+    await loadSections([
+      () => getCustomerMaster(connection, input.routeId, routeCustomerCodes),
+      () => getSalesCalendar(connection),
+      () => getRouteSequence(
         connection,
         input.routeId,
         routeCustomerCodes,
         routeWeek,
       ),
-      getCustomerInvoice(connection, input.routeId, routeCustomerCodes),
+      () => getCustomerInvoice(connection, input.routeId, routeCustomerCodes),
     ]);
 
   const [
@@ -77,19 +89,19 @@ export async function getMasterDataSyncSections(
     promotionassignmentadvanced,
     customerpricing1,
     pricingdetail1,
-  ] = await Promise.all([
-    getDiscountKeyHeader(connection),
-    getDiscountKeyDetail(connection),
-    getDistributionKeyDetails(connection),
-    getProductGroupHeader(connection, input.routeId),
-    getProductGroupDetail(connection, input.routeId),
-    getPromoKeyHeader(connection, input.routeId),
-    getPromoKeyDetail(connection, input.routeId),
-    getPromoPlanHeader(connection, input.routeId),
-    getPromoPlanDetail(connection, input.routeId),
-    getPromotionAssignmentAdvanced(connection, input.routeId),
-    getCustomerPricing1(connection, input.routeId),
-    getPricingDetail1(connection, input.routeId),
+  ] = await loadSections([
+    () => getDiscountKeyHeader(connection),
+    () => getDiscountKeyDetail(connection),
+    () => getDistributionKeyDetails(connection),
+    () => getProductGroupHeader(connection, input.routeId),
+    () => getProductGroupDetail(connection, input.routeId),
+    () => getPromoKeyHeader(connection, input.routeId),
+    () => getPromoKeyDetail(connection, input.routeId),
+    () => getPromoPlanHeader(connection, input.routeId),
+    () => getPromoPlanDetail(connection, input.routeId),
+    () => getPromotionAssignmentAdvanced(connection, input.routeId),
+    () => getCustomerPricing1(connection, input.routeId),
+    () => getPricingDetail1(connection, input.routeId),
   ]);
 
   const [
@@ -103,17 +115,17 @@ export async function getMasterDataSyncSections(
     customersurveydefinition,
     customersurveydefassign,
     lookupindexdetail,
-  ] = await Promise.all([
-    getPosMaster(connection),
-    getCustomerPosInventory(connection),
-    getCustomerPosLimit(connection),
-    getPosInstructions(connection),
-    getCustomerSurveyPlan(connection),
-    getCustomerSurveyKeyPlan(connection),
-    getCustomerSurveyKey(connection),
-    getCustomerSurveyDefinition(connection),
-    getCustomerSurveyDefAssign(connection),
-    getLookupIndexDetail(connection),
+  ] = await loadSections([
+    () => getPosMaster(connection),
+    () => getCustomerPosInventory(connection),
+    () => getCustomerPosLimit(connection),
+    () => getPosInstructions(connection),
+    () => getCustomerSurveyPlan(connection),
+    () => getCustomerSurveyKeyPlan(connection),
+    () => getCustomerSurveyKey(connection),
+    () => getCustomerSurveyDefinition(connection),
+    () => getCustomerSurveyDefAssign(connection),
+    () => getLookupIndexDetail(connection),
   ]);
 
   const [
@@ -123,19 +135,19 @@ export async function getMasterDataSyncSections(
     retitmreasons,
     freegoodreasons,
     voidreasons,
-  ] = await Promise.all([
-    getNonServiceReasons(connection),
-    getExpenseReasons(connection),
-    getExpiryReturnReasons(connection),
-    getReturnItemReasons(connection),
-    getFreeGoodReasons(connection),
-    getVoidReasons(connection),
+  ] = await loadSections([
+    () => getNonServiceReasons(connection),
+    () => getExpenseReasons(connection),
+    () => getExpiryReturnReasons(connection),
+    () => getReturnItemReasons(connection),
+    () => getFreeGoodReasons(connection),
+    () => getVoidReasons(connection),
   ]);
 
-  const [routebook, salestrend, tempcustinventory] = await Promise.all([
-    getRouteBook(connection, input.routeId),
-    getSalesTrend(connection, input.routeId),
-    getTempCustomerInventory(connection, input.routeId),
+  const [routebook, salestrend, tempcustinventory] = await loadSections([
+    () => getRouteBook(connection, input.routeId),
+    () => getSalesTrend(connection, input.routeId),
+    () => getTempCustomerInventory(connection, input.routeId),
   ]);
 
   const [
@@ -145,13 +157,13 @@ export async function getMasterDataSyncSections(
     bankmaster,
     cashdesc,
     inventorylocation,
-  ] = await Promise.all([
-    getCustomerMessages(connection),
-    getSalesmanMessages(connection),
-    getVanMaster(connection),
-    getBankMaster(connection),
-    getCashDescription(connection),
-    getInventoryLocation(connection),
+  ] = await loadSections([
+    () => getCustomerMessages(connection),
+    () => getSalesmanMessages(connection),
+    () => getVanMaster(connection),
+    () => getBankMaster(connection),
+    () => getCashDescription(connection),
+    () => getInventoryLocation(connection),
   ]);
 
   return {

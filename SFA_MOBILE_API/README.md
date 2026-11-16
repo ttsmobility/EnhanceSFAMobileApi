@@ -26,6 +26,27 @@ GET /health
 
 ## Sync performance diagnostics
 
+To identify individual master-data queries, temporarily enable:
+
+```dotenv
+SYNC_QUERY_TIMING_ENABLED=true
+LOG_LEVEL=info
+```
+
+After building and restarting, run a few routes with `--concurrency 1` and capture
+`sync.masterdata.queries` from server console output. The log includes query count,
+per-query elapsed milliseconds, row counts, table names, and the ten slowest SQL
+statements. Bind values and response rows are not logged.
+
+This diagnostic mode runs master-data loaders sequentially on the existing
+transaction connection. Otherwise, timings around `Promise.all` on one mysql2
+connection would include time waiting behind other queries. Each query duration
+still includes driver preparation, network transfer, result decoding, and any
+database lock wait; it is not pure MySQL execution time. Use execution plans or
+database-side query timing to distinguish those costs. Query result contracts and
+SQL are unchanged. Set `SYNC_QUERY_TIMING_ENABLED=false` and restart after profiling
+to restore normal scheduling before comparing load-test results.
+
 At `LOG_LEVEL=info` (or `debug`), master sync emits a structured server log with
 `event: "sync.performance"`, the route ID, and `databaseCompleted`.
 The API response is unchanged. Timing fields are milliseconds:
