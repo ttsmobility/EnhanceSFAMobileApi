@@ -11,6 +11,9 @@ import {
 } from "../../../../shared/utils/commonUtils";
 import type { DatabaseQueryTiming, GenericRow } from "../../../../shared/utils/commonUtils";
 
+import { env } from '../../../../config/env';
+import { getProductGroupHeader, getProductGroupDetail, getOptimizedProductGroups } from './productGroups.model';
+
 /** Loads all product, customer, promotion, survey, reason, and reference sections. */
 export async function getMasterDataSyncSections(
   connection: PoolConnection,
@@ -76,6 +79,12 @@ export async function getMasterDataSyncSections(
       () => getCustomerInvoice(connection, input.routeId, routeCustomerCodes),
     ]);
 
+  // Share eligibility results across both product-group sections. Disabled until
+  // the read-only comparison has verified parity on the deployed database.
+  const productGroups = env.SYNC_PRODUCT_GROUP_OPTIMIZATION_ENABLED
+    ? await getOptimizedProductGroups(connection, input.routeId)
+    : undefined;
+
   const [
     discountkeyheader,
     discountkeydetail,
@@ -93,8 +102,8 @@ export async function getMasterDataSyncSections(
     () => getDiscountKeyHeader(connection),
     () => getDiscountKeyDetail(connection),
     () => getDistributionKeyDetails(connection),
-    () => getProductGroupHeader(connection, input.routeId),
-    () => getProductGroupDetail(connection, input.routeId),
+    () => productGroups ? Promise.resolve(productGroups.productgroupheader) : getProductGroupHeader(connection, input.routeId),
+    () => productGroups ? Promise.resolve(productGroups.productgroupdetail) : getProductGroupDetail(connection, input.routeId),
     () => getPromoKeyHeader(connection, input.routeId),
     () => getPromoKeyDetail(connection, input.routeId),
     () => getPromoPlanHeader(connection, input.routeId),
@@ -1726,114 +1735,6 @@ async function getDistributionKeyDetails(
       SELECT distributionkey, item, value
       FROM distributionkeydetails
     `,
-  );
-
-  return rows;
-}
-
-/** Returns route-relevant promotion product-group headers. */
-async function getProductGroupHeader(
-  connection: PoolConnection,
-  routeId: number,
-): Promise<GenericRow[]> {
-  const [rows] = await connection.execute<GenericRow[]>(
-    `
-      SELECT DISTINCT pgh.*
-      FROM productgroupheader pgh
-      WHERE pgh.groupnumber IN (
-        SELECT ppd.qualificationgroup
-        FROM promokeyheader pkh
-        INNER JOIN promokeydetail pkd
-          ON pkh.promotionkey = pkd.promotionkey
-          AND CURRENT_DATE() BETWEEN pkd.startdate AND pkd.enddate
-        INNER JOIN promoplanheader pph ON pkd.plannumber = pph.plannumber
-        INNER JOIN promoplandetail ppd ON pph.plannumber = ppd.plannumber
-        WHERE pkh.promotionkey IN (
-          SELECT DISTINCT cm.promotionkey
-          FROM customermaster cm
-          INNER JOIN routesequence rs
-            ON cm.customercode = rs.customercode
-            AND rs.routecode = :routeId
-        )
-        AND pkd.qualificationgroup IN (
-          SELECT DISTINCT pgd.groupnumber
-          FROM productgroupdetail pgd
-          WHERE pgd.itemcode IN (
-            SELECT DISTINCT rim.itemcode
-            FROM routeitemmapping rim
-            WHERE rim.routeitemgrpcode = (
-              SELECT routeitemgrpcode
-              FROM routemaster
-              WHERE routecode = :routeId
-              LIMIT 1
-            )
-          )
-        )
-        UNION
-        SELECT ppd.assignmentgroup
-        FROM promokeyheader pkh
-        INNER JOIN promokeydetail pkd
-          ON pkh.promotionkey = pkd.promotionkey
-          AND CURRENT_DATE() BETWEEN pkd.startdate AND pkd.enddate
-        INNER JOIN promoplanheader pph ON pkd.plannumber = pph.plannumber
-        INNER JOIN promoplandetail ppd ON pph.plannumber = ppd.plannumber
-        WHERE pkh.promotionkey IN (
-          SELECT DISTINCT cm.promotionkey
-          FROM customermaster cm
-          INNER JOIN routesequence rs
-            ON cm.customercode = rs.customercode
-            AND rs.routecode = :routeId
-        )
-      )
-    `,
-    { routeId },
-  );
-
-  return rows;
-}
-
-/** Returns items belonging to route-relevant promotion product groups. */
-async function getProductGroupDetail(
-  connection: PoolConnection,
-  routeId: number,
-): Promise<GenericRow[]> {
-  const [rows] = await connection.execute<GenericRow[]>(
-    `
-      SELECT DISTINCT pgd.*
-      FROM productgroupdetail pgd
-      WHERE pgd.groupnumber IN (
-        SELECT ppd.qualificationgroup
-        FROM promokeyheader pkh
-        INNER JOIN promokeydetail pkd
-          ON pkh.promotionkey = pkd.promotionkey
-          AND CURRENT_DATE() BETWEEN pkd.startdate AND pkd.enddate
-        INNER JOIN promoplanheader pph ON pkd.plannumber = pph.plannumber
-        INNER JOIN promoplandetail ppd ON pph.plannumber = ppd.plannumber
-        WHERE pkh.promotionkey IN (
-          SELECT DISTINCT cm.promotionkey
-          FROM customermaster cm
-          INNER JOIN routesequence rs
-            ON cm.customercode = rs.customercode
-            AND rs.routecode = :routeId
-        )
-        UNION
-        SELECT ppd.assignmentgroup
-        FROM promokeyheader pkh
-        INNER JOIN promokeydetail pkd
-          ON pkh.promotionkey = pkd.promotionkey
-          AND CURRENT_DATE() BETWEEN pkd.startdate AND pkd.enddate
-        INNER JOIN promoplanheader pph ON pkd.plannumber = pph.plannumber
-        INNER JOIN promoplandetail ppd ON pph.plannumber = ppd.plannumber
-        WHERE pkh.promotionkey IN (
-          SELECT DISTINCT cm.promotionkey
-          FROM customermaster cm
-          INNER JOIN routesequence rs
-            ON cm.customercode = rs.customercode
-            AND rs.routecode = :routeId
-        )
-      )
-    `,
-    { routeId },
   );
 
   return rows;

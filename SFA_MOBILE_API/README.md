@@ -26,6 +26,38 @@ GET /health
 
 ## Sync performance diagnostics
 
+### Promotion product-group optimization
+
+The optional product-group path resolves eligible route promotions once and
+retrieves the matching groups with indexed key lookups. It preserves the legacy
+header qualification restriction and the unrestricted assignment branch. All
+columns and response section names are retained. The original SQL remains the
+default until the target database comparison has passed:
+
+```dotenv
+SYNC_PRODUCT_GROUP_OPTIMIZATION_ENABLED=false
+```
+
+Build, then run a read-only comparison against the `.env` database:
+
+```bash
+npm run build
+node scripts/compare-product-group-performance.js --routes 1818,1819,1820 --repeats 3 --explain
+```
+
+The script uses a repeatable-read, read-only transaction per route, compares every
+returned column/value including duplicate counts, and alternates execution order
+between rounds. Row order is ignored because neither implementation specifies an
+order. It writes timings, hashes and optional execution plans to
+`performance-results/product-groups-*.json`. `--explain` performs additional SELECT
+queries to capture plans; it does not alter data or indexes. It requires access to
+the configured MySQL database and should run outside an active load test.
+
+If results match and timings improve, enable
+`SYNC_PRODUCT_GROUP_OPTIMIZATION_ENABLED=true`, restart the API and compare full
+sync responses and load-test results. A false value restores the original SQL.
+No production speed improvement is assumed until measured on the target server.
+
 To identify individual master-data queries, temporarily enable:
 
 ```dotenv

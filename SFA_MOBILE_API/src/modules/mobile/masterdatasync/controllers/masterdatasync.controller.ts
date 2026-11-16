@@ -106,6 +106,7 @@ export async function masterDataSyncAction(
     request.log.info({
       event: 'sync.performance',
       routeId: params.routeid,
+      productGroupOptimization: env.SYNC_PRODUCT_GROUP_OPTIMIZATION_ENABLED,
       databaseCompleted,
       ...timings
     }, 'master sync performance');
