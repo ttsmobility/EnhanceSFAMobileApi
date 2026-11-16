@@ -17,6 +17,8 @@ const envSchema = z.object({
   FILE_LOG_MAX_RESPONSE_LENGTH: z.coerce.number().int().positive().default(10485760),
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().default('0.0.0.0'),
+  BACKUP_UPLOAD_DIR: z.string().min(1).default('./upload'),
+  BACKUP_UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(50 * 1024 * 1024),
   DB_HOST: z.string().default('127.0.0.1'),
   DB_PORT: z.coerce.number().int().positive().default(3306),
   DB_USER: z.string().default('root'),
