@@ -28,6 +28,22 @@ GET /health
 
 ### Customer and settings candidates
 
+The three-route comparison on 2026-11-16 matched all returned values. Consolidated
+sequence reads fell from 777–790 ms to 433–437 ms. The customer join did not improve
+the roughly 682–690 ms customer read, so keep the customer flag false. The plans
+showed a full scan of about 100,196 customer rows for templates and full scans of
+the invoice, AR and order header tables for route maxima (EXPLAIN estimates).
+
+The targeted, one-time index migration is
+`database/migrations/20261116_sync_hotspot_indexes.sql`, with a separate `.rollback.sql`
+file. It contains only the customer-template index and the three covering route
+indexes justified by those plans; it does not apply all diagnostic suggestions.
+Select the correct SFA database, verify the indexes are still absent, and apply
+outside the load test. Index creation consumes disk/I/O and may wait for metadata
+locks even with `LOCK=NONE`. It is never executed automatically by the API. After
+applying, rerun `compare-sync-hotspots.js --explain` to check row parity, index use,
+and timings again. Keep the query flags independent when comparing results.
+
 Two additional candidates are disabled until the target database comparison passes:
 
 ```dotenv
